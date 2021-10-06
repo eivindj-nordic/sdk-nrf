@@ -19,6 +19,7 @@ if(CONFIG_NRF_MODEM_LIB_TRACE_ENABLED)
   )
 endif()
 zephyr_library_sources(errno_sanity.c)
+zephyr_library_sources_ifdef(CONFIG_NRF_MODEM_LIB_AT_CMD_FILTER nrf_modem_at_cmd_filter.c)
 zephyr_library_sources(shmem_sanity.c)
 
 zephyr_linker_sources(RODATA nrf_modem_lib.ld)

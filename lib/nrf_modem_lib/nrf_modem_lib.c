@@ -17,7 +17,7 @@
 #include <nrf_modem_at.h>
 
 #ifndef CONFIG_TRUSTED_EXECUTION_NONSECURE
-#error  nrf_modem_lib must be run as non-secure firmware.\
+#error nrf_modem_lib must be run as non-secure firmware.\
 	Are you building for the correct board ?
 #endif /* CONFIG_TRUSTED_EXECUTION_NONSECURE */
 
@@ -119,8 +119,8 @@ static int _nrf_modem_lib_init(const struct device *unused)
 	/* Setup the network IRQ used by the Modem library.
 	 * Note: No call to irq_enable() here, that is done through nrf_modem_init().
 	 */
-	IRQ_CONNECT(NRF_MODEM_NETWORK_IRQ, NRF_MODEM_NETWORK_IRQ_PRIORITY,
-		    nrfx_isr, nrfx_ipc_irq_handler, 0);
+	IRQ_CONNECT(NRF_MODEM_NETWORK_IRQ, NRF_MODEM_NETWORK_IRQ_PRIORITY, nrfx_isr,
+		    nrfx_ipc_irq_handler, 0);
 
 	init_ret = nrf_modem_init(&init_params, NORMAL_MODE);
 
@@ -133,15 +133,15 @@ static int _nrf_modem_lib_init(const struct device *unused)
 		struct shutdown_thread *thread, *next_thread;
 
 		/* Wake up all sleeping threads. */
-		SYS_SLIST_FOR_EACH_CONTAINER_SAFE(&shutdown_threads, thread,
-					     next_thread, node) {
+		SYS_SLIST_FOR_EACH_CONTAINER_SAFE (&shutdown_threads, thread, next_thread, node) {
 			k_sem_give(&thread->sem);
 		}
 	}
 	k_mutex_unlock(&slist_mutex);
 
 	LOG_DBG("Modem library has initialized, ret %d", init_ret);
-	STRUCT_SECTION_FOREACH(nrf_modem_lib_init_cb, e) {
+	STRUCT_SECTION_FOREACH(nrf_modem_lib_init_cb, e)
+	{
 		LOG_DBG("Modem init callback: %p", e->callback);
 		e->callback(init_ret, e->context);
 	}
@@ -193,7 +193,8 @@ int nrf_modem_lib_get_init_ret(void)
 int nrf_modem_lib_shutdown(void)
 {
 	LOG_DBG("Shutting down modem library");
-	STRUCT_SECTION_FOREACH(nrf_modem_lib_shutdown_cb, e) {
+	STRUCT_SECTION_FOREACH(nrf_modem_lib_shutdown_cb, e)
+	{
 		LOG_DBG("Modem shutdown callback: %p", e->callback);
 		e->callback(e->context);
 	}

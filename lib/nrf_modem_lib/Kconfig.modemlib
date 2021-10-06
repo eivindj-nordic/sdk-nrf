@@ -82,6 +82,12 @@ endif # NRF_MODEM_LIB_TRACE_MEDIUM_RTT
 
 endif # NRF_MODEM_LIB_TRACE_ENABLED
 
+config NRF_MODEM_LIB_AT_CMD_FILTER
+	bool "Enable AT command filters"
+	help
+	  When enabled, filtered AT commands are redirected to an application-provided
+	  implementation.
+
 config NRF_MODEM_LIB_SENDMSG_BUF_SIZE
 	int "Size of the sendmsg intermediate buffer"
 	default 128
