@@ -320,5 +320,6 @@ int at_sms_cert_deinit(void)
 }
 
 #if defined(CONFIG_AT_SMS_CERT_SYS_INIT)
-SYS_INIT(at_sms_cert_init, APPLICATION, 0);
+/* Initialize during SYS_INIT */
+SYS_INIT(at_sms_cert_init, APPLICATION, 1);
 #endif
