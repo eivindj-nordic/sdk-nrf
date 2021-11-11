@@ -159,17 +159,6 @@ static void test_at_cmd_filter_cmd_cmgw_cmgd(void)
 	zassert_mem_equal(response, "ERROR", strlen("ERROR"), NULL);
 }
 
-static void test_at_cmd_filter_buffer_size(void)
-{
-	int err;
-
-	err = nrf_modem_at_cmd(response, 1, "AT+CMGD=2");
-	zassert_equal(-NRF_E2BIG, err, "nrf_modem_at_cmd failed, error: %d", err);
-
-	err = nrf_modem_at_cmd(NULL, 100, "AT+CMGD=2");
-	zassert_equal(-NRF_EFAULT, err, "nrf_modem_at_cmd failed, error: %d", err);
-}
-
 void test_main(void)
 {
 	ztest_test_suite(at_cmd_filter,
@@ -180,8 +169,7 @@ void test_main(void)
 		ztest_unit_test(test_at_cmd_filter_cmd_cmgd),
 		ztest_unit_test(test_at_cmd_filter_cmd_cmgw),
 		ztest_unit_test(test_at_cmd_filter_cmd_cmss),
-		ztest_unit_test(test_at_cmd_filter_cmd_cmgw_cmgd),
-		ztest_unit_test(test_at_cmd_filter_buffer_size)
+		ztest_unit_test(test_at_cmd_filter_cmd_cmgw_cmgd)
 	);
 
 	ztest_run_test_suite(at_cmd_filter);

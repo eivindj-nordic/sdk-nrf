@@ -18,8 +18,6 @@
 
 LOG_MODULE_REGISTER(at_monitor);
 
-static struct nrf_modem_at_cmd_filter *at_cmd_filter_list;
-
 int at_custom_cmd_sys_init(const struct device *unused)
 {
 	static struct nrf_modem_at_cmd_filter *at_cmd_filter_list;
@@ -70,7 +68,7 @@ int at_custom_cmd_response_buffer_fill(char *buf, size_t len,
 	return 0;
 }
 
-#if defined(CONFIG_AT_FILTER_SYS_INIT)
+#if defined(CONFIG_AT_CUSTOM_CMD_SYS_INIT)
 /* Initialize during SYS_INIT */
 SYS_INIT(at_custom_cmd_sys_init, APPLICATION, 1);
 #endif

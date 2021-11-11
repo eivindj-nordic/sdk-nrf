@@ -76,7 +76,7 @@ static int at_cmd_callback_cpms(char *buf, size_t len, const char *at_cmd)
 
 	/* Test */
 	if (match_string("AT+CPMS=?", at_cmd)) {
-		return at_filter_response_buffer_fill(buf, len,
+		return at_custom_cmd_response_buffer_fill(buf, len,
 				"\r\n+CPMS: (\"TA\"),(\"TA\")\r\nOK\r\n");
 	}
 
@@ -90,7 +90,8 @@ static int at_cmd_callback_cpms(char *buf, size_t len, const char *at_cmd)
 			}
 		}
 
-		return at_filter_response_buffer_fill(buf, len, "\r\n+CPMS: %d,%d,%d,%d\r\nOK\r\n",
+		return at_custom_cmd_response_buffer_fill(buf, len,
+				"\r\n+CPMS: %d,%d,%d,%d\r\nOK\r\n",
 				sms_storage_used, SMS_BUFFER_LIST_SIZE, sms_storage_used,
 				SMS_BUFFER_LIST_SIZE);
 	}
@@ -103,7 +104,7 @@ static int at_cmd_callback_cpms(char *buf, size_t len, const char *at_cmd)
 			}
 		}
 
-		return at_filter_response_buffer_fill(buf, len, "\r\n+CPMS: \"SM\",%d,%d,"
+		return at_custom_cmd_response_buffer_fill(buf, len, "\r\n+CPMS: \"SM\",%d,%d,"
 				"\"SM\",%d,%d,\"MT\",%d,%d\r\nOK\r\n",
 				sms_storage_used, SMS_BUFFER_LIST_SIZE, sms_storage_used,
 				SMS_BUFFER_LIST_SIZE, sms_storage_used, SMS_BUFFER_LIST_SIZE);
@@ -119,36 +120,36 @@ static int at_cmd_callback_cpms(char *buf, size_t len, const char *at_cmd)
 			}
 		}
 
-		return at_filter_response_buffer_fill(buf, len,
+		return at_custom_cmd_response_buffer_fill(buf, len,
 				"\r\n+CPMS: \"TA\",%d,%d,\"TA\",%d,%d\r\nOK\r\n",
 				sms_storage_used, SMS_BUFFER_LIST_SIZE,
 				sms_storage_used, SMS_BUFFER_LIST_SIZE);
 	}
 
-	return at_filter_response_buffer_fill(buf, len, "ERROR\r\n");
+	return at_custom_cmd_response_buffer_fill(buf, len, "ERROR\r\n");
 }
 
 static int at_cmd_callback_csms(char *buf, size_t len, const char *at_cmd)
 {
 	/* Test */
 	if (match_string("AT+CSMS=?", at_cmd)) {
-		return at_filter_response_buffer_fill(buf, len,
+		return at_custom_cmd_response_buffer_fill(buf, len,
 				"\r\n+CSMS: 0\r\nOK\r\n");
 	}
 
 	/* Set */
 	if (match_string("AT+CSMS=0", at_cmd)) {
-		return at_filter_response_buffer_fill(buf, len, "\r\n+CSMS: 1,1,0\r\nOK\r\n");
+		return at_custom_cmd_response_buffer_fill(buf, len, "\r\n+CSMS: 1,1,0\r\nOK\r\n");
 	} else if (match_string("AT+CSMS=1", at_cmd)) {
-		return at_filter_response_buffer_fill(buf, len, "\r\n+CSMS: 0,0,0\r\nOK\r\n");
+		return at_custom_cmd_response_buffer_fill(buf, len, "\r\n+CSMS: 0,0,0\r\nOK\r\n");
 	}
 
 	/* Read */
 	if (match_string("AT+CSMS?", at_cmd)) {
-		return at_filter_response_buffer_fill(buf, len, "\r\n+CSMS: 0,1,1,0\r\nOK\r\n");
+		return at_custom_cmd_response_buffer_fill(buf, len, "\r\n+CSMS: 0,1,1,0\r\nOK\r\n");
 	}
 
-	return at_filter_response_buffer_fill(buf, len, "ERROR\r\n");
+	return at_custom_cmd_response_buffer_fill(buf, len, "ERROR\r\n");
 }
 
 static int at_cmd_callback_csca(char *buf, size_t len, const char *at_cmd)
@@ -156,17 +157,17 @@ static int at_cmd_callback_csca(char *buf, size_t len, const char *at_cmd)
 	/* Set */
 	if (match_string("AT+CSCA=", at_cmd)) {
 		strncpy(sca_buff, &(at_cmd[8]), SCA_BUFFER_SIZE);
-		return at_filter_response_buffer_fill(buf, len,
+		return at_custom_cmd_response_buffer_fill(buf, len,
 				"\r\n+CSMS: OK\r\nOK\r\n");
 	}
 
 	/* Read */
 	if (match_string("AT+CSCA?", at_cmd)) {
-		return at_filter_response_buffer_fill(buf, len,
+		return at_custom_cmd_response_buffer_fill(buf, len,
 				"\r\n+CSMS: %s\r\nOK\r\n", sca_buff);
 	}
 
-	return at_filter_response_buffer_fill(buf, len, "ERROR\r\n");
+	return at_custom_cmd_response_buffer_fill(buf, len, "ERROR\r\n");
 }
 
 static int at_cmd_callback_cscs(char *buf, size_t len, const char *at_cmd)
@@ -174,18 +175,18 @@ static int at_cmd_callback_cscs(char *buf, size_t len, const char *at_cmd)
 	/* Set */
 	if (match_string("AT+CSCS=", at_cmd)) {
 		strncpy(sca_buff, &(at_cmd[8]), SCA_BUFFER_SIZE);
-		return at_filter_response_buffer_fill(buf, len,
+		return at_custom_cmd_response_buffer_fill(buf, len,
 				"\r\nOK\r\n");
 	}
 
-	return at_filter_response_buffer_fill(buf, len, "ERROR\r\n");
+	return at_custom_cmd_response_buffer_fill(buf, len, "ERROR\r\n");
 }
 
 static int at_cmd_callback_cmgd(char *buf, size_t len, const char *at_cmd)
 {
 	/* Test */
 	if (match_string("AT+CMGD=?", at_cmd)) {
-		return at_filter_response_buffer_fill(buf, len, "\r\n+CMGD: (1-3)\r\nOK\r\n");
+		return at_custom_cmd_response_buffer_fill(buf, len, "\r\n+CMGD: (1-3)\r\nOK\r\n");
 	}
 
 	/* Set */
@@ -194,13 +195,13 @@ static int at_cmd_callback_cmgd(char *buf, size_t len, const char *at_cmd)
 
 		if (index < SMS_BUFFER_LIST_SIZE) {
 			sms_buffer_list[index].pdu_size = 0;
-			return at_filter_response_buffer_fill(buf, len,
+			return at_custom_cmd_response_buffer_fill(buf, len,
 					"\r\nOK\r\n");
 		}
 
 	}
 
-	return at_filter_response_buffer_fill(buf, len, "ERROR\r\n");
+	return at_custom_cmd_response_buffer_fill(buf, len, "ERROR\r\n");
 }
 
 static int at_cmd_callback_cmss(char *buf, size_t len, const char *at_cmd)
@@ -210,7 +211,7 @@ static int at_cmd_callback_cmss(char *buf, size_t len, const char *at_cmd)
 
 	/* Set */
 	if (!match_string("AT+CMSS=", at_cmd)) {
-		return at_filter_response_buffer_fill(buf, len, "ERROR\r\n");
+		return at_custom_cmd_response_buffer_fill(buf, len, "ERROR\r\n");
 	}
 
 	sms_buffer_index = strtol(&(at_cmd[8]), NULL, 10) - 1;
@@ -245,7 +246,7 @@ static int at_cmd_callback_cmgw(char *buf, size_t len, const char *at_cmd)
 
 	/* Set */
 	if (!match_string("AT+CMGW=", at_cmd)) {
-		return at_filter_response_buffer_fill(buf, len, "ERROR\r\n");
+		return at_custom_cmd_response_buffer_fill(buf, len, "ERROR\r\n");
 	}
 
 	s1 = strstr(at_cmd, "\r");
@@ -266,12 +267,12 @@ static int at_cmd_callback_cmgw(char *buf, size_t len, const char *at_cmd)
 			/* Store in SMS buffer. */
 			strncpy(sms_buffer_list[i].data, s1, (size_t) (s2 - s1));
 			/* Make AT response. */
-			return at_filter_response_buffer_fill(buf, len,
+			return at_custom_cmd_response_buffer_fill(buf, len,
 					"\r\n+CMGW: %d\r\nOK\r\n", i+1);
 		}
 	}
 
-	return at_filter_response_buffer_fill(buf, len, "ERROR\r\n");
+	return at_custom_cmd_response_buffer_fill(buf, len, "ERROR\r\n");
 }
 
 /* Initialize library
