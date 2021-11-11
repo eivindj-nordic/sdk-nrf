@@ -73,6 +73,7 @@ Kconfig*                                  @tejlmand
 /lib/adp536x/                             @jtguggedal
 /lib/at_cmd_parser/                       @rlubos
 /lib/at_cmd/                              @rlubos
+/lib/at_custom_cmd/                       @eivindj-nordic
 /lib/at_host/                             @rlubos
 /lib/at_monitor/                          @emdi @rlubos
 /lib/at_notif/                            @rlubos
