@@ -16,7 +16,7 @@
 #include <logging/log.h>
 #include <stdio.h>
 
-LOG_MODULE_REGISTER(at_monitor);
+LOG_MODULE_REGISTER(at_filter);
 
 int at_custom_cmd_sys_init(const struct device *unused)
 {

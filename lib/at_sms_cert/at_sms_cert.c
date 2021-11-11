@@ -38,7 +38,7 @@ static struct sms_buffer sms_buffer_list[SMS_BUFFER_LIST_SIZE];
 /* Buffer for SCA. */
 static char sca_buff[SCA_BUFFER_SIZE];
 
-/* custom AT function declarations. */
+/* Custom AT function declarations. */
 static int at_cmd_callback_cpms(char *buf, size_t len, const char *at_cmd);
 static int at_cmd_callback_csms(char *buf, size_t len, const char *at_cmd);
 static int at_cmd_callback_csca(char *buf, size_t len, const char *at_cmd);

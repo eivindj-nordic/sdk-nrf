@@ -5,7 +5,7 @@
 #
 
 menuconfig AT_CUSTOM_CMD
-	bool "AT custom commands"
+	bool "Enable custom AT commands"
 
 if AT_CUSTOM_CMD
 

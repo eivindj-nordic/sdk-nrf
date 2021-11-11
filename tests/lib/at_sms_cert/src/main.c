@@ -14,7 +14,7 @@
 
 static char response[64];
 
-static void test_at_cmd_filter_setup(void)
+static void test_at_sms_cert_setup(void)
 {
 	int err;
 	int retries = 50;
@@ -48,7 +48,7 @@ static void test_at_cmd_filter_setup(void)
 	zassert_mem_equal(response, "OK", strlen("OK"), NULL);
 }
 
-static void test_at_cmd_filter_cmd_cpms(void)
+static void test_at_sms_cert_cpms(void)
 {
 	int err;
 
@@ -68,7 +68,7 @@ static void test_at_cmd_filter_cmd_cpms(void)
 			NULL);
 }
 
-static void test_at_cmd_filter_cmd_csms(void)
+static void test_at_sms_cert_csms(void)
 {
 	int err;
 
@@ -89,7 +89,7 @@ static void test_at_cmd_filter_cmd_csms(void)
 	zassert_mem_equal(response, "\r\n+CSMS: 0", strlen("\r\n+CSMS: 0"), NULL);
 }
 
-static void test_at_cmd_filter_cmd_csca(void)
+static void test_at_sms_cert_csca(void)
 {
 	int err;
 
@@ -104,7 +104,7 @@ static void test_at_cmd_filter_cmd_csca(void)
 			NULL);
 }
 
-static void test_at_cmd_filter_cmd_cmgd(void)
+static void test_at_sms_cert_cmgd(void)
 {
 	int err;
 
@@ -117,7 +117,7 @@ static void test_at_cmd_filter_cmd_cmgd(void)
 	zassert_mem_equal(response, "\r\n+CMGD: (1-3)", strlen("\r\n+CMGD: (1-3)"), NULL);
 }
 
-static void test_at_cmd_filter_cmd_cmgw(void)
+static void test_at_sms_cert_cmgw(void)
 {
 	int err;
 
@@ -130,7 +130,7 @@ static void test_at_cmd_filter_cmd_cmgw(void)
 	zassert_mem_equal(response, "\r\n+CMGW: 2", strlen("\r\n+CMGW: 2"), NULL);
 }
 
-static void test_at_cmd_filter_cmd_cmss(void)
+static void test_at_sms_cert_cmss(void)
 {
 	int err;
 
@@ -138,7 +138,7 @@ static void test_at_cmd_filter_cmd_cmss(void)
 	zassert_mem_equal(response, "+CMS ERROR:", strlen("+CMS ERROR:"), NULL);
 }
 
-static void test_at_cmd_filter_cmd_cmgw_cmgd(void)
+static void test_at_sms_cert_cmgw_cmgd(void)
 {
 	int err;
 
@@ -159,17 +159,28 @@ static void test_at_cmd_filter_cmd_cmgw_cmgd(void)
 	zassert_mem_equal(response, "ERROR", strlen("ERROR"), NULL);
 }
 
+static void test_at_sms_cert_shutdown(void)
+{
+	int err;
+
+	err = nrf_modem_at_printf("AT+CFUN=0");
+	zassert_equal(0, err, "nrf_modem_at_printf failed, error: %d", err);
+}
+
 void test_main(void)
 {
 	ztest_test_suite(at_cmd_filter,
-		ztest_unit_test(test_at_cmd_filter_setup),
-		ztest_unit_test(test_at_cmd_filter_cmd_cpms),
-		ztest_unit_test(test_at_cmd_filter_cmd_csms),
-		ztest_unit_test(test_at_cmd_filter_cmd_csca),
-		ztest_unit_test(test_at_cmd_filter_cmd_cmgd),
-		ztest_unit_test(test_at_cmd_filter_cmd_cmgw),
-		ztest_unit_test(test_at_cmd_filter_cmd_cmss),
-		ztest_unit_test(test_at_cmd_filter_cmd_cmgw_cmgd)
+		ztest_unit_test(test_at_sms_cert_setup),
+
+		ztest_unit_test(test_at_sms_cert_cpms),
+		ztest_unit_test(test_at_sms_cert_csms),
+		ztest_unit_test(test_at_sms_cert_csca),
+		ztest_unit_test(test_at_sms_cert_cmgd),
+		ztest_unit_test(test_at_sms_cert_cmgw),
+		ztest_unit_test(test_at_sms_cert_cmss),
+		ztest_unit_test(test_at_sms_cert_cmgw_cmgd),
+
+		ztest_unit_test(test_at_sms_cert_shutdown)
 	);
 
 	ztest_run_test_suite(at_cmd_filter);
