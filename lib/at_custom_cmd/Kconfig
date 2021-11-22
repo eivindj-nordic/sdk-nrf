@@ -13,10 +13,6 @@ config AT_CUSTOM_CMD_SYS_INIT
 	bool "Initialize during SYS_INIT"
 	default y
 
-config AT_CUSTOM_CMD_SPLIT_ON_SEMICOLON
-	bool "Split AT command on semicolon"
-	default n
-
 module=AT_CUSTOM_CMD
 module-dep=LOG
 module-str= AT custom command library

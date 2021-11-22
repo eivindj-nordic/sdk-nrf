@@ -16,14 +16,14 @@
 static char response[64];
 
 /* AT filter function declarations. */
-static int at_cmd_callback_cmd1(char *buf, size_t len, const char *at_cmd)
+static int at_cmd_callback_cmd1(char *buf, size_t len, char *at_cmd)
 {
 	zassert_mem_equal("AT+CMD1", at_cmd, strlen("AT+CMD1"), NULL);
 	return at_custom_cmd_response_buffer_fill(buf, len, "\r\n+CMD1: OK\r\n");
 
 }
 
-static int at_cmd_callback_cmd2(char *buf, size_t len, const char *at_cmd)
+static int at_cmd_callback_cmd2(char *buf, size_t len, char *at_cmd)
 {
 	zassert_mem_equal("AT+CMD2", at_cmd, strlen("AT+CMD2"), NULL);
 	return at_custom_cmd_response_buffer_fill(buf, len,
@@ -108,6 +108,9 @@ static void test_at_custom_cmd_command_fault_on_NULL_buffer(void)
 static void test_at_custom_cmd_shutdown(void)
 {
 	int err;
+
+	err = at_custom_cmd_deinit();
+	zassert_equal(0, err, "custom_at_cmd_deinit failed, error: %d", err);
 
 	err = nrf_modem_at_printf("AT+CFUN=0");
 	zassert_equal(0, err, "nrf_modem_at_printf failed, error: %d", err);

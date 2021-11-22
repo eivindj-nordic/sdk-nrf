@@ -31,7 +31,12 @@ extern "C" {
 /**
  * @brief Initialize custom AT commands.
  */
-void at_custom_cmd_init(void);
+int at_custom_cmd_init(void);
+
+/**
+ * @brief Deinitialize custom AT commands.
+ */
+int at_custom_cmd_deinit(void);
 
 /**
  * @brief Fill response buffer.

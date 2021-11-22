@@ -18,14 +18,12 @@
 
 LOG_MODULE_REGISTER(at_filter);
 
-int at_custom_cmd_sys_init(const struct device *unused)
+int at_custom_cmd_init(void)
 {
 	static struct nrf_modem_at_cmd_filter *at_cmd_filter_list;
 	bool first_list_item = true;
 	int num_items = 0;
 	int err;
-
-	(void)unused;
 
 	STRUCT_SECTION_FOREACH(nrf_modem_at_cmd_filter, e) {
 		if (first_list_item) {
@@ -39,12 +37,19 @@ int at_custom_cmd_sys_init(const struct device *unused)
 	err = nrf_modem_at_cmd_filter_set(at_cmd_filter_list, num_items);
 	LOG_INF("AT filter enabled with %d entries.", num_items);
 
-#if defined(CONFIG_AT_CUSTOM_CMD_SPLIT_ON_SEMICOLON)
-	nrf_modem_at_cmd_filter_split_on_semicolon(true);
-	LOG_WRN("AT filter configured to split commands on semicolon.");
-#endif
-
 	return err;
+}
+
+int at_custom_cmd_deinit(void)
+{
+	return nrf_modem_at_cmd_filter_set(NULL, 0);
+}
+
+int at_custom_cmd_sys_init(const struct device *unused)
+{
+	(void)unused;
+
+	return at_custom_cmd_init();
 }
 
 /* Fill response buffer without overflowing the buffer. */
@@ -72,8 +77,3 @@ int at_custom_cmd_response_buffer_fill(char *buf, size_t len,
 /* Initialize during SYS_INIT */
 SYS_INIT(at_custom_cmd_sys_init, APPLICATION, 1);
 #endif
-
-void at_custom_cmd_init(void)
-{
-	at_custom_cmd_sys_init(NULL);
-}

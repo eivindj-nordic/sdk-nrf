@@ -39,26 +39,46 @@ static struct sms_buffer sms_buffer_list[SMS_BUFFER_LIST_SIZE];
 static char sca_buff[SCA_BUFFER_SIZE];
 
 /* Custom AT function declarations. */
-static int at_cmd_callback_cpms(char *buf, size_t len, const char *at_cmd);
-static int at_cmd_callback_csms(char *buf, size_t len, const char *at_cmd);
-static int at_cmd_callback_csca(char *buf, size_t len, const char *at_cmd);
-static int at_cmd_callback_cscs(char *buf, size_t len, const char *at_cmd);
-static int at_cmd_callback_cmgd(char *buf, size_t len, const char *at_cmd);
-static int at_cmd_callback_cmss(char *buf, size_t len, const char *at_cmd);
-static int at_cmd_callback_cmgw(char *buf, size_t len, const char *at_cmd);
+static int at_cmd_callback_cpms(char *buf, size_t len, char *at_cmd);
+static int at_cmd_callback_csms(char *buf, size_t len, char *at_cmd);
+static int at_cmd_callback_csca(char *buf, size_t len, char *at_cmd);
+static int at_cmd_callback_cscs(char *buf, size_t len, char *at_cmd);
+static int at_cmd_callback_cmgd(char *buf, size_t len, char *at_cmd);
+static int at_cmd_callback_cmss(char *buf, size_t len, char *at_cmd);
+static int at_cmd_callback_cmgw(char *buf, size_t len, char *at_cmd);
+
+int at_sms_cert_filter_callback(char *buf, size_t len, char *at_cmd);
 
 /* AT filters
  * Including all comands the filter should check for and function ptr
  * to functions to be called on detection.
  */
 
-AT_FILTER(GCF1, "AT+CPMS", &at_cmd_callback_cpms);
-AT_FILTER(GCF2, "AT+CSMS", &at_cmd_callback_csms);
-AT_FILTER(GCF3, "AT+CSCA", &at_cmd_callback_csca);
-AT_FILTER(GCF4, "AT+CSCS", &at_cmd_callback_cscs);
-AT_FILTER(GCF5, "AT+CMGD", &at_cmd_callback_cmgd);
-AT_FILTER(GCF6, "AT+CMSS", &at_cmd_callback_cmss);
-AT_FILTER(GCF7, "AT+CMGW", &at_cmd_callback_cmgw);
+AT_FILTER(GCF1, "AT+CPMS", &at_sms_cert_filter_callback);
+AT_FILTER(GCF2, "AT+CSMS", &at_sms_cert_filter_callback);
+AT_FILTER(GCF3, "AT+CSCA", &at_sms_cert_filter_callback);
+AT_FILTER(GCF4, "AT+CSCS", &at_sms_cert_filter_callback);
+AT_FILTER(GCF5, "AT+CMGD", &at_sms_cert_filter_callback);
+AT_FILTER(GCF6, "AT+CMSS", &at_sms_cert_filter_callback);
+AT_FILTER(GCF7, "AT+CMGW", &at_sms_cert_filter_callback);
+
+/*
+ * Internal AT SMS Cert filters
+ *
+ * note: The reason for having a shared callback for all filtered commands instead of calling the
+ * custom command-specific callbacks directly is that we want to support multiple commands on the
+ * same call, e.g. "AT+CMMS=1;+CMSS=0;+CMSS=1".
+ */
+struct nrf_modem_at_cmd_filter at_sms_cert_filters[] = {
+{"AT+CPMS", &at_cmd_callback_cpms},
+{"AT+CSMS", &at_cmd_callback_csms},
+{"AT+CSCA", &at_cmd_callback_csca},
+{"AT+CSCS", &at_cmd_callback_cscs},
+{"AT+CMGD", &at_cmd_callback_cmgd},
+{"AT+CMSS", &at_cmd_callback_cmss},
+{"AT+CMGW", &at_cmd_callback_cmgw},
+};
+
 
 /* Match string. */
 static int match_string(char *str, const char *at_cmd)
@@ -66,11 +86,83 @@ static int match_string(char *str, const char *at_cmd)
 	return (strncmp(str, at_cmd, strlen(str)) == 0);
 }
 
+/* Get internal callback for custom AT SMS cert commands */
+static nrf_modem_at_cmd_handler_t at_sms_cert_filter_callback_get(char *at_cmd)
+{
+	bool match;
+	int match_len;
+
+	if ((sizeof(at_sms_cert_filters) == 0) || (at_sms_cert_filters == NULL)) {
+		return NULL;
+	}
+
+	for (size_t i = 0; i < sizeof(at_sms_cert_filters); i++) {
+		match_len = strlen(at_sms_cert_filters[i].cmd);
+		match = strncmp(at_sms_cert_filters[i].cmd, at_cmd, match_len) == 0;
+		if (match) {
+			return at_sms_cert_filters[i].callback;
+		}
+	}
+
+	return NULL;
+}
+
+/* Internal filter with multiple command support */
+
+int at_sms_cert_filter_callback(char *buf, size_t len, char *at_cmd)
+{
+
+	int err = 0;
+	nrf_modem_at_cmd_handler_t callback;
+	char *msg;
+
+	/* Split and loop on multiple commands */
+	msg = strtok(at_cmd, ";");
+
+	if (!msg) {
+		err = -NRF_EFAULT;
+		return err;
+	}
+
+	while (msg) {
+		callback = at_sms_cert_filter_callback_get(msg);
+
+		if (callback) {
+			/* AT command is filtered */
+			err = (*callback)(buf, len, msg);
+			if (err < 0) {
+				return err;
+			}
+		} else {
+			/* AT command is not filtered */
+			err = nrf_modem_at_cmd(buf, len, msg);
+		}
+
+		if (err != 0) {
+			return err;
+		}
+
+		msg = strtok(NULL, ";");
+		/* Add AT for concatenated AT-commands */
+		if ((msg != NULL) && (msg[0] != 'A')
+					&& (msg - 2 * sizeof(char) >= at_cmd)) {
+			msg = msg - 2 * sizeof(char);
+			msg[0] = 'A';
+			msg[1] = 'T';
+		}
+	}
+
+	return err;
+}
+
+
+
+
 /*
  * AT Filter callback functions.
  */
 
-static int at_cmd_callback_cpms(char *buf, size_t len, const char *at_cmd)
+static int at_cmd_callback_cpms(char *buf, size_t len, char *at_cmd)
 {
 	int sms_storage_used = 0;
 
@@ -129,7 +221,7 @@ static int at_cmd_callback_cpms(char *buf, size_t len, const char *at_cmd)
 	return at_custom_cmd_response_buffer_fill(buf, len, "ERROR\r\n");
 }
 
-static int at_cmd_callback_csms(char *buf, size_t len, const char *at_cmd)
+static int at_cmd_callback_csms(char *buf, size_t len, char *at_cmd)
 {
 	/* Test */
 	if (match_string("AT+CSMS=?", at_cmd)) {
@@ -152,7 +244,7 @@ static int at_cmd_callback_csms(char *buf, size_t len, const char *at_cmd)
 	return at_custom_cmd_response_buffer_fill(buf, len, "ERROR\r\n");
 }
 
-static int at_cmd_callback_csca(char *buf, size_t len, const char *at_cmd)
+static int at_cmd_callback_csca(char *buf, size_t len, char *at_cmd)
 {
 	/* Set */
 	if (match_string("AT+CSCA=", at_cmd)) {
@@ -170,7 +262,7 @@ static int at_cmd_callback_csca(char *buf, size_t len, const char *at_cmd)
 	return at_custom_cmd_response_buffer_fill(buf, len, "ERROR\r\n");
 }
 
-static int at_cmd_callback_cscs(char *buf, size_t len, const char *at_cmd)
+static int at_cmd_callback_cscs(char *buf, size_t len, char *at_cmd)
 {
 	/* Set */
 	if (match_string("AT+CSCS=", at_cmd)) {
@@ -182,7 +274,7 @@ static int at_cmd_callback_cscs(char *buf, size_t len, const char *at_cmd)
 	return at_custom_cmd_response_buffer_fill(buf, len, "ERROR\r\n");
 }
 
-static int at_cmd_callback_cmgd(char *buf, size_t len, const char *at_cmd)
+static int at_cmd_callback_cmgd(char *buf, size_t len, char *at_cmd)
 {
 	/* Test */
 	if (match_string("AT+CMGD=?", at_cmd)) {
@@ -204,7 +296,7 @@ static int at_cmd_callback_cmgd(char *buf, size_t len, const char *at_cmd)
 	return at_custom_cmd_response_buffer_fill(buf, len, "ERROR\r\n");
 }
 
-static int at_cmd_callback_cmss(char *buf, size_t len, const char *at_cmd)
+static int at_cmd_callback_cmss(char *buf, size_t len, char *at_cmd)
 {
 	int err;
 	int sms_buffer_index;
@@ -239,7 +331,7 @@ static int at_cmd_callback_cmss(char *buf, size_t len, const char *at_cmd)
 	return err;
 }
 
-static int at_cmd_callback_cmgw(char *buf, size_t len, const char *at_cmd)
+static int at_cmd_callback_cmgw(char *buf, size_t len, char *at_cmd)
 {
 	char *s1 = NULL;
 	char *s2 = NULL;
