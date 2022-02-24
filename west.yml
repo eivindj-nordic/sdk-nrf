@@ -37,6 +37,9 @@ manifest:
       url-base: https://github.com/memfault
     - name: lemrey
       url-base: https://github.com/lemrey
+    - name: eivindj-nordic
+      url-base: https://github.com/eivindj-nordic
+
 
 
   # If not otherwise specified, the projects below should be obtained
@@ -57,8 +60,8 @@ manifest:
     # https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/zephyr/guides/modules.html
     - name: zephyr
       repo-path: sdk-zephyr
-      remote: lemrey
-      revision: e37c4108bd3a04c300228f5b17c6d1c8943f1a53
+      remote: eivindj-nordic
+      revision: pull/6/head
       import:
         # In addition to the zephyr repository itself, NCS also
         # imports the contents of zephyr/west.yml at the above
@@ -108,7 +111,8 @@ manifest:
     - name: nrfxlib
       repo-path: sdk-nrfxlib
       path: nrfxlib
-      revision: d188f23ee7677760a3464209aabd77bba6d9a75f
+      remote: eivindj-nordic
+      revision: pull/8/head
     - name: trusted-firmware-m
       repo-path: sdk-trusted-firmware-m
       path: modules/tee/tfm
