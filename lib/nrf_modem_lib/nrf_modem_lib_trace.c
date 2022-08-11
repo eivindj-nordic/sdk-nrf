@@ -55,11 +55,16 @@ static int trace_fragment_write(struct nrf_modem_trace_data *frag)
 	int ret;
 	size_t remaining = frag->len;
 
+	if (frag->len > 16000000) {
+		LOG_WRN("Received long frag length %d", frag->len);
+	}
+
 	while (remaining) {
 		ret = trace_backend_write((void *)((uint8_t *)frag->data + frag->len - remaining),
 					  remaining);
 		if (ret < 0) {
-			LOG_ERR("trace_backend_write failed with err: %d", ret);
+			LOG_ERR("trace_backend_write failed with err: %d, f->data %p, f->len: %d",
+				ret, (uint8_t *)frag->data + frag->len - remaining, remaining);
 
 			return ret;
 		}
@@ -100,6 +105,10 @@ trace_reset:
 		for (size_t i = 0; i < n_frags; i++) {
 			err = trace_fragment_write(&frags[i]);
 			if (err) {
+				LOG_ERR("frag write err: %d, frag %d/%d,"
+					"curr: %p frags: %p f[i]->data %p, f[i]->len %d",
+					err, i + 1, n_frags, &frags[i], frags,
+					frags[i].data, frags[i].len);
 				goto out;
 			}
 		}

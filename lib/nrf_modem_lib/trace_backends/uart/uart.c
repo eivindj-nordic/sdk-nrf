@@ -105,6 +105,8 @@ int trace_backend_write(const void *data, size_t len)
 {
 	nrfx_err_t err;
 
+	int i = 0;
+
 	/* Split RAM buffer into smaller chunks to be transferred using DMA. */
 	uint8_t *buf = (uint8_t *)data;
 	const size_t MAX_BUF_LEN = (1 << UARTE1_EASYDMA_MAXCNT_SIZE) - 1;
@@ -121,12 +123,17 @@ int trace_backend_write(const void *data, size_t len)
 
 		err = nrfx_uarte_tx(&uarte_inst, &buf[idx], transfer_len);
 		if (err != NRFX_SUCCESS) {
-			LOG_ERR("nrfx_uarte_tx error: %d", err);
+			LOG_ERR("nrfx_uarte_tx err: 0x%x, p_data: %p (frag_start: %p), len: %d",
+				err, &buf[idx], data, len);
+			LOG_ERR("nrfx_uarte_tx idx: %d, remaining: %d tf_len: %d, i: %d",
+				idx, remaining_bytes, transfer_len, i);
 			k_sem_give(&tx_sem);
 			break;
 		}
 
 		remaining_bytes -= transfer_len;
+
+		i++;
 	}
 
 	wait_for_tx_done();
