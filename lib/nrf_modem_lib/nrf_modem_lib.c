@@ -16,6 +16,8 @@
 #include <modem/nrf_modem_lib_trace.h>
 #include <pm_config.h>
 
+// This commit is not to be merged
+
 #ifndef CONFIG_TRUSTED_EXECUTION_NONSECURE
 #error  nrf_modem_lib must be run as non-secure firmware.\
 	Are you building for the correct board ?
