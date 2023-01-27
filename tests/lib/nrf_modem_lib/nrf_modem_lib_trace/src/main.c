@@ -13,7 +13,7 @@
 
 #include "nrf_modem_lib_trace.h"
 
-#include "cmock_trace_backend.h"
+#include "cmock_trace_backend_mock.h"
 #include "cmock_nrf_modem.h"
 #include "cmock_nrf_modem_trace.h"
 #include "cmock_nrf_modem_os.h"
@@ -47,6 +47,21 @@ static int trace_backend_write_cmock_num_calls;
 
 static void nrf_modem_at_printf_ExpectTraceLevelAndReturn(
 	const char *fmt, const enum nrf_modem_lib_trace_level trace_level, int retval);
+
+static int callback_evt;
+
+/* This is the override for the _weak callback. */
+void nrf_modem_lib_trace_callback(enum nrf_modem_lib_trace_event evt)
+{
+	callback_evt = evt;
+}
+
+/* This is the callback we set using the set function. */
+static void nrf_modem_lib_trace_callback_explicit(enum nrf_modem_lib_trace_event evt)
+{
+	/* Err will not be positive, so we use -1 to verify that the explicit callback was called */
+	callback_evt = 1;
+}
 
 void setUp(void)
 {
@@ -372,6 +387,68 @@ void test_nrf_modem_lib_trace_level_set_efault(void)
 
 	ret = nrf_modem_lib_trace_level_set(wrong_level);
 	TEST_ASSERT_EQUAL(-ENOEXEC, ret);
+}
+
+void test_nrf_modem_lib_trace_enospc(void)
+{
+	int ret;
+	struct nrf_modem_trace_data header = { 0 };
+	struct nrf_modem_trace_data *header_write;
+
+	__cmock_trace_backend_init_ExpectAndReturn(nrf_modem_trace_processed, 0);
+	__cmock_nrf_modem_trace_get_Stub(nrf_modem_trace_get_stub);
+	__cmock_trace_backend_write_Stub(trace_backend_write_stub);
+	__cmock_trace_backend_deinit_Stub(trace_backend_deinit_stub);
+
+	NRF_MODEM_LIB_ON_INIT_callback();
+
+	trace_backend_write_error = -ENOSPC;
+
+	generate_trace_frag(&header);
+
+	k_fifo_alloc_put(&get_fifo, &header);
+
+	ret = nrf_modem_lib_trace_processing_done_wait(K_FOREVER);
+	TEST_ASSERT_EQUAL(-ENOSPC, ret);
+
+	TEST_ASSERT_EQUAL(NRF_MODEM_LIB_TRACE_EVT_FULL, callback_evt);
+
+	/* Set explicit handler */
+	nrf_modem_lib_trace_callback_set(nrf_modem_lib_trace_callback_explicit);
+
+	/* Clear space */
+	__cmock_trace_backend_clear_ExpectAndReturn(0);
+	ret = nrf_modem_lib_trace_clear();
+	TEST_ASSERT_EQUAL(0, ret);
+
+	ret = nrf_modem_lib_trace_processing_done_wait(K_FOREVER);
+	TEST_ASSERT_EQUAL(-ENOSPC, ret);
+
+	TEST_ASSERT_EQUAL(1, callback_evt);
+
+	/* Clear explicit handler */
+	nrf_modem_lib_trace_callback_set(NULL);
+
+	/* Clear space, make sure default handler is called */
+	__cmock_trace_backend_clear_ExpectAndReturn(0);
+	ret = nrf_modem_lib_trace_clear();
+	TEST_ASSERT_EQUAL(0, ret);
+
+	ret = nrf_modem_lib_trace_processing_done_wait(K_FOREVER);
+	TEST_ASSERT_EQUAL(-ENOSPC, ret);
+
+	TEST_ASSERT_EQUAL(NRF_MODEM_LIB_TRACE_EVT_FULL, callback_evt);
+
+	/* Clear error and space, make sure we can continue to write. */
+	trace_backend_write_error = 0;
+
+	__cmock_trace_backend_clear_ExpectAndReturn(0);
+	ret = nrf_modem_lib_trace_clear();
+	TEST_ASSERT_EQUAL(0, ret);
+
+	header_write = k_fifo_get(&write_fifo, K_FOREVER);
+	TEST_ASSERT_EQUAL_PTR(header.data, header_write->data);
+	TEST_ASSERT_EQUAL_size_t(header.len, header_write->len);
 }
 
 void main(void)
