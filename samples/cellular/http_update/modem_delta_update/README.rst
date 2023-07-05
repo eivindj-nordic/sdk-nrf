@@ -45,8 +45,9 @@ Testing
 After programming the sample to your development kit,, test it by performing the following steps:
 
 1. Note the LED pattern (1 or 2 LEDs).
-#. Press **Button 1** on the nRF9160 DK or type "download" in the terminal emulator to start the download process of the delta to the alternative firmware version.
-#. Once the download has been completed, follow the reboot instructions printed to the UART console.
+#. Press **Button 1** on the nRF91 Series DK or type "download" in the terminal emulator to start downloading the delta modem firmware update.
+   Once the download is complete, the modem update procedure begins automatically.
+   Once the modem update procedure is complete, the modem is reinitialized to run the new firmware.
 #. Observe that the LED pattern has changed (1 vs 2).
 #. Start over from point 1, to perform the delta update back to the previous version.
 

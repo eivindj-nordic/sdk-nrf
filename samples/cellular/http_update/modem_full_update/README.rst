@@ -25,7 +25,7 @@ Overview
 ********
 
 An |external_flash_size| of free space is required to perform a full modem update.
-Hence, only versions 0.14.0 and later of the nrf9160 DK support this sample as the earlier versions do not have any external flash memory.
+Hence, only versions 0.14.0 and later of the nrf91 Series DK support this sample as the earlier versions do not have any external flash memory.
 
 The sample proceeds as follows:
 
@@ -34,8 +34,8 @@ The sample proceeds as follows:
 #. It prevalidates the update if the firmware supports the prevalidation process.
 #. It then programs the update to the modem, using the :ref:`lib_fmfu_fdev` library.
 
-The current version of this sample downloads two different versions of the firmware, namely 1.3.3 and 1.3.4.
-The sample then selects the version which is currently not installed.
+The current version of this sample downloads two different versions of the firmware.
+The sample then selects the version to install based on the currently installed version.
 
 Configuration
 *************
@@ -88,9 +88,9 @@ Testing
 |test_sample|
 
 1. Start the application and wait for a prompt for pressing a button.
-#. Press the button or type "download" in the terminal emulator to start the update procedure.
-#. Once the download has completed, the modem update procedure begins automatically.
-#. Press the **Reset** button or type "reset" in the terminal emulator to reset the development kit.
+#. Press the **Button 1** button or type "download" in the terminal emulator to start downloading the update.
+   Once the download is complete, the modem update procedure begins automatically.
+   Once the modem update procedure is complete, the modem is reinitialized to run the new firmware.
 #. Observe that the LED pattern has changed.
 
 Dependencies
