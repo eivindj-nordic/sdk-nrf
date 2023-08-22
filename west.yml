@@ -61,7 +61,7 @@ manifest:
     # https://developer.nordicsemi.com/nRF_Connect_SDK/doc/latest/zephyr/guides/modules.html
     - name: zephyr
       repo-path: sdk-zephyr
-      revision: 7c771b10d2628d1f4a9949dd4aa52bfe1bb6ac91
+      revision: pull/1294/head
       import:
         # In addition to the zephyr repository itself, NCS also
         # imports the contents of zephyr/west.yml at the above
@@ -128,7 +128,7 @@ manifest:
           compare-by-default: true
     - name: mcuboot
       repo-path: sdk-mcuboot
-      revision: eafdae91cb0d357a0ee81014a8101abdc1917dbb
+      revision: pull/271/head
       path: bootloader/mcuboot
     - name: qcbor
       url: https://github.com/laurencelundblade/QCBOR.git
@@ -195,7 +195,7 @@ manifest:
         - sidewalk
     - name: homekit
       repo-path: sdk-homekit
-      revision: f4f12b5c84353ea58411e57a7d2dc51eef7eac08
+      revision: pull/477/head
       groups:
         - homekit
     - name: find-my
@@ -239,7 +239,7 @@ manifest:
       remote: throwtheswitch
     - name: memfault-firmware-sdk
       path: modules/lib/memfault-firmware-sdk
-      revision: 0.43.3
+      revision: 1.2.4
       remote: memfault
     - name: ant
       repo-path: sdk-ant
