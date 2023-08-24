@@ -1370,3 +1370,5 @@
 .. _`Setting up the SDK for Amazon Sidewalk`: https://nrfconnect.github.io/sdk-sidewalk/setting_up_sidewalk_environment/setting_up_sdk.html
 
 .. _`Community Best Practice for Copyright Notice`: https://www.linuxfoundation.org/blog/copyright-notices-in-open-source-software-projects/
+
+.. _`HTTPie`: https://httpie.io/

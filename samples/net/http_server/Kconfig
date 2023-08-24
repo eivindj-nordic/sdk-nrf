@@ -1,0 +1,49 @@
+#
+# Copyright (c) 2024 Nordic Semiconductor ASA
+#
+# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+#
+
+menu "HTTP server sample"
+
+config HTTP_SERVER_SAMPLE_SERVER_PORT
+	int "Server Port"
+	default 8080
+
+config HTTP_SERVER_SAMPLE_SERVER_PORT_TLS
+	int "Server Port (TLS)"
+	default 443
+
+config HTTP_SERVER_SAMPLE_CLIENTS_MAX
+	int "Maximum clients"
+	default 2
+	help
+	  This option sets the maximum number of concurrent clients.
+
+config HTTP_SERVER_SAMPLE_SERVER_CERTIFICATE_SEC_TAG
+	int "Server Certificate Security Tag"
+	default 1
+	help
+	  This option sets the security tag for the server certificate used in TLS.
+
+config HTTP_SERVER_SAMPLE_STACK_SIZE
+	int "Thread Stack Size"
+	default 4096
+	help
+	  This option sets the stack size for the threads used in the sample.
+
+config HTTP_SERVER_SAMPLE_RECEIVE_BUFFER_SIZE
+	int "Receive Buffer Size"
+	default 1024
+	help
+	  This option sets the receive buffer size for the sockets used in the sample.
+
+module = HTTP_SERVER_SAMPLE
+module-str = HTTP server sample
+source "${ZEPHYR_BASE}/subsys/logging/Kconfig.template.log_config"
+
+menu "Zephyr Kernel"
+source "Kconfig.zephyr"
+endmenu
+
+endmenu

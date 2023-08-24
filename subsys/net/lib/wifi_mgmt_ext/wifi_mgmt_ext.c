@@ -135,7 +135,7 @@ static int add_network_from_credentials_struct_personal(struct wifi_credentials_
 		return -ENOEXEC;
 	}
 
-	LOG_INF("Connection requested");
+	LOG_DBG("Connection requested");
 
 out:
 	if (cnx_params.psk) {
