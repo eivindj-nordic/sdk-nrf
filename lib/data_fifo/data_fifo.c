@@ -108,7 +108,7 @@ void data_fifo_block_free(struct data_fifo *data_fifo, void *data)
 	__ASSERT_NO_MSG(data_fifo != NULL);
 	__ASSERT_NO_MSG(data_fifo->initialized);
 
-	k_mem_slab_free(&data_fifo->mem_slab, data);
+	k_mem_slab_free(&data_fifo->mem_slab, *data);
 }
 
 int data_fifo_num_used_get(struct data_fifo *data_fifo, uint32_t *alloced_num, uint32_t *locked_num)
