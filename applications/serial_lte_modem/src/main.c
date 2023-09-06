@@ -220,7 +220,7 @@ void enter_idle(void)
 		LOG_ERR("GPIO_0 add callback error: %d", err);
 		return;
 	}
-	err = gpio_pin_interrupt_configure(gpio_dev, CONFIG_SLM_WAKEUP_PIN, GPIO_INT_EDGE_FALLING);
+	err = gpio_pin_interrupt_configure(gpio_dev, CONFIG_SLM_WAKEUP_PIN, GPIO_INT_LEVEL_LOW);
 	if (err) {
 		LOG_ERR("GPIO_0 enable callback error: %d", err);
 		return;
