@@ -9,6 +9,8 @@
 	status = "okay";
 	current-speed = < 1000000 >;
 	hw-flow-control;
+
+	/delete-property/ hw-flow-control;
 };
 
 / {
