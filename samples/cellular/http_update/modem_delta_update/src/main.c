@@ -13,6 +13,7 @@
 #include <zephyr/sys/reboot.h>
 #include <zephyr/shell/shell.h>
 
+#include <nrf_errno.h>
 #include <nrf_modem.h>
 #include <nrf_modem_at.h>
 #include <nrf_socket.h>
@@ -36,8 +37,8 @@
 #define MAX_MODEM_VERSION_LEN 256
 static char modem_version[MAX_MODEM_VERSION_LEN];
 
-enum fota_state { IDLE, CONNECTED, UPDATE_DOWNLOAD, UPDATE_APPLY };
-static enum fota_state state = IDLE;
+enum fota_state { IDLE, CONNECTED, UPDATE_DOWNLOAD, UPDATE_PENDING, UPDATE_APPLY, ERROR };
+static volatile enum fota_state state = IDLE;
 
 static const struct gpio_dt_spec led0 = GPIO_DT_SPEC_GET(DT_ALIAS(led0), gpios);
 static const struct gpio_dt_spec led1 = GPIO_DT_SPEC_GET(DT_ALIAS(led1), gpios);
@@ -110,15 +111,15 @@ static int leds_set(int num)
 	switch (num) {
 	case 0:
 		gpio_pin_configure_dt(&led0, GPIO_OUTPUT_INACTIVE);
-		gpio_pin_configure_dt(&led0, GPIO_OUTPUT_INACTIVE);
+		gpio_pin_configure_dt(&led1, GPIO_OUTPUT_INACTIVE);
 		break;
 	case 1:
 		gpio_pin_configure_dt(&led0, GPIO_OUTPUT_ACTIVE);
-		gpio_pin_configure_dt(&led0, GPIO_OUTPUT_INACTIVE);
+		gpio_pin_configure_dt(&led1, GPIO_OUTPUT_INACTIVE);
 		break;
 	case 2:
 		gpio_pin_configure_dt(&led0, GPIO_OUTPUT_ACTIVE);
-		gpio_pin_configure_dt(&led0, GPIO_OUTPUT_ACTIVE);
+		gpio_pin_configure_dt(&led1, GPIO_OUTPUT_ACTIVE);
 		break;
 	default:
 		return -EINVAL;
@@ -139,8 +140,16 @@ static void dfu_button_irq_enable(void)
 static void dfu_button_pressed(const struct device *gpiob, struct gpio_callback *cb,
 			uint32_t pins)
 {
-	k_work_submit(&fota_work);
-	apply_state(UPDATE_DOWNLOAD);
+	switch (state) {
+	case CONNECTED:
+		apply_state(UPDATE_DOWNLOAD);
+		break;
+	case UPDATE_PENDING:
+		apply_state(UPDATE_APPLY);
+		break;
+	default:
+		break;
+	}
 }
 
 static int button_init(void)
@@ -194,8 +203,7 @@ void fota_dl_handler(const struct fota_download_evt *evt)
 		break;
 
 	case FOTA_DOWNLOAD_EVT_FINISHED:
-		apply_state(UPDATE_APPLY);
-		k_work_submit(&fota_work);
+		apply_state(UPDATE_PENDING);
 		break;
 
 	default:
@@ -314,7 +322,9 @@ static int apply_state(enum fota_state new_state)
 {
 	__ASSERT(state != new_state, "State already set: %d", state);
 
-	switch (new_state) {
+	state = new_state;
+
+	switch (state) {
 	case IDLE:
 		dfu_button_irq_disable();
 		modem_configure_and_connect();
@@ -324,16 +334,20 @@ static int apply_state(enum fota_state new_state)
 		printk("Press Button 1 or enter 'download' to download firmware update\n");
 		break;
 	case UPDATE_DOWNLOAD:
-		__ASSERT(state != UPDATE_APPLY,
-			 "Invalid transition: UPDATE_APPLY to UPDATE_DOWNLOAD\n");
 		dfu_button_irq_disable();
+		k_work_submit(&fota_work);
+		break;
+	case UPDATE_PENDING:
+		dfu_button_irq_enable();
+		printk("Press Button 1 or enter 'apply' to apply the firmware update\n"); //TODO APPLY enter
 		break;
 	case UPDATE_APPLY:
 		dfu_button_irq_disable();
-		lte_lc_deinit();
+		k_work_submit(&fota_work);
+		break;
+	case ERROR:
 		break;
 	}
-	state = new_state;
 
 	return 0;
 }
@@ -343,46 +357,34 @@ static int shell_download(const struct shell *shell, size_t argc, char **argv)
 	ARG_UNUSED(argc);
 	ARG_UNUSED(argv);
 
+	if (state != CONNECTED) {
+		printk("Not allowed\n");
+		return -1;
+	}
+
 	apply_state(UPDATE_DOWNLOAD);
-	k_work_submit(&fota_work);
 
 	return 0;
 }
 
-SHELL_CMD_REGISTER(download, NULL, "For downloading modem  firmware", shell_download);
+SHELL_CMD_REGISTER(download, NULL, "Download modem firmware", shell_download);
 
-static int dfu_apply(void)
+static int shell_apply(const struct shell *shell, size_t argc, char **argv)
 {
-	int err;
+	ARG_UNUSED(argc);
+	ARG_UNUSED(argv);
 
-	err = nrf_modem_lib_init();
-	switch (err) {
-	case NRF_MODEM_DFU_RESULT_OK:
-		printk("Modem firmware update successful!\n");
-		printk("Modem will run the new firmware after modem reboot\n");
-		return 0;
-	case NRF_MODEM_DFU_RESULT_UUID_ERROR:
-	case NRF_MODEM_DFU_RESULT_AUTH_ERROR:
-		printk("Modem firmware update failed\n");
-		return err;
-	case NRF_MODEM_DFU_RESULT_HARDWARE_ERROR:
-	case NRF_MODEM_DFU_RESULT_INTERNAL_ERROR:
-		printk("Modem firmware update failed\n");
-		printk("Fatal error.\n");
-		return err;
-	case NRF_MODEM_DFU_RESULT_VOLTAGE_LOW:
-		printk("Modem firmware update failed\n");
-		printk("Please reboot once you have sufficient power for the DFU.\n");
-		return err;
-	case -1:
-		printk("Could not initialize momdem library.\n");
-		printk("Fatal error.\n");
-		return err;
+	if (state != UPDATE_PENDING) {
+		printk("Not allowed\n");
+		return -1;
 	}
 
-	return -EINVAL;
+	apply_state(UPDATE_APPLY);
+
+	return 0;
 }
 
+SHELL_CMD_REGISTER(apply, NULL, "Apply modem firmware", shell_apply);
 
 static void fota_work_cb(struct k_work *work)
 {
@@ -391,9 +393,6 @@ static void fota_work_cb(struct k_work *work)
 	ARG_UNUSED(work);
 
 	switch (state) {
-	case IDLE:
-	case CONNECTED:
-		break;
 	case UPDATE_DOWNLOAD:
 		err = update_download();
 		if (err) {
@@ -401,26 +400,65 @@ static void fota_work_cb(struct k_work *work)
 		}
 		break;
 	case UPDATE_APPLY:
+		printk("Applying firmware update. This can take a while.\n");
+		lte_lc_deinit();
+		/* Re-initialize the modem to apply the update. */
 		err = nrf_modem_lib_shutdown();
 		if (err) {
 			printk("Failed to shutdown modem, err %d\n", err);
 		}
 
-		/* Modem firmware will be updated on modem library init */
-		err = dfu_apply();
-		if (err) {
-			printk("Failed applying FOTA\n");
-		}
-
-		/* Initialize again to start modem in normal mode. */
 		err = nrf_modem_lib_init();
 		if (err) {
 			printk("Modem initialization failed, err %d\n", err);
+			switch (err) {
+			case -NRF_EPERM:
+				printk("Modem is already initialized");
+				break;
+			case -NRF_EAGAIN:
+				printk("Modem update failed due to low voltage. Try again later\n");
+				apply_state(UPDATE_PENDING);
+				return;
+			default:
+				printk("Reprogram the full modem firmware to recover\n");
+				apply_state(ERROR);
+				return;
+			}
 		}
 
 		current_version_display();
 
 		apply_state(IDLE);
+		break;
+	default:
+		break;
+	}
+}
+
+static void on_modem_lib_dfu(int dfu_res, void *ctx)
+{
+	switch (dfu_res)
+	{
+	case NRF_MODEM_DFU_RESULT_OK:
+		printk("Modem firmware update successful!\n");
+		printk("Modem is initializing with the new firmware\n");
+		break;
+	case NRF_MODEM_DFU_RESULT_UUID_ERROR:
+	case NRF_MODEM_DFU_RESULT_AUTH_ERROR:
+		printk("Modem firmware update failed\n");
+		printk("Modem is initializing with the previous firmware\n");
+		break;
+	case NRF_MODEM_DFU_RESULT_HARDWARE_ERROR:
+	case NRF_MODEM_DFU_RESULT_INTERNAL_ERROR:
+		printk("Modem firmware update failed\n");
+		printk("Fatal error.\n");
+		break;
+	case NRF_MODEM_DFU_RESULT_VOLTAGE_LOW:
+		printk("Modem firmware update failed\n");
+		printk("Please reboot once you have sufficient power for the DFU.\n");
+		break;
+	default:
+		printk("Unknown error.\n");
 		break;
 	}
 }
@@ -433,15 +471,6 @@ int main(void)
 
 	printk("HTTP delta modem update sample started\n");
 
-	printk("Initializing modem library\n");
-
-	err = nrf_modem_lib_init();
-	if (err) {
-		printk("Modem library initialization failed, err %d\n", err);
-		return err;
-	}
-	printk("Initialized modem library\n");
-
 	k_work_init(&fota_work, fota_work_cb);
 
 	err = button_init();
@@ -453,6 +482,28 @@ int main(void)
 	if (err != 0) {
 		return err;
 	}
+
+	printk("Initializing modem library\n");
+
+	err = nrf_modem_lib_init();
+	if (err) {
+		printk("Modem library initialization failed, err %d\n", err);
+		switch (err) {
+		case -NRF_EPERM:
+			printk("Modem is already initialized");
+			break;
+		case -NRF_EAGAIN:
+			printk("Modem update failed due to low voltage. Try again later\n");
+			apply_state(UPDATE_PENDING);
+			return 0;
+		default:
+			printk("Reprogram the full modem firmware to recover\n");
+			apply_state(ERROR);
+			return err;
+		}
+	}
+
+	printk("Initialized modem library\n");
 
 	err = modem_info_init();
 	if (err != 0) {
@@ -473,6 +524,10 @@ int main(void)
 	if (err) {
 		printk("Modem configuration failed: %d\n", err);
 		return err;
+	}
+
+	while(1) {
+		k_sleep(K_FOREVER);
 	}
 
 	return 0;
