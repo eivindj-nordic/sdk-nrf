@@ -754,7 +754,7 @@ static int cmd_app_data_send(const struct shell *shell, size_t argc, char **argv
 
 	if (argc == 2) {
 		/* Using the App Data Container object.*/
-		path[0] = 10250;
+		path[0] = LWM2M_CARRIER_OBJECT_APP_DATA_CONTAINER;
 		path[1] = 0;
 		path[2] = 0;
 		path_len = 3;
@@ -762,7 +762,7 @@ static int cmd_app_data_send(const struct shell *shell, size_t argc, char **argv
 		buffer_len = strlen(argv[1]);
 	} else {
 		/* Using the Binary App Data Container object. */
-		path[0] = 19;
+		path[0] = LWM2M_CARRIER_OBJECT_BINARY_APP_DATA_CONTAINER;
 		path[1] = (uint16_t)atoi(argv[1]);
 		path[2] = 0;
 		path[3] = (uint16_t)atoi(argv[2]);

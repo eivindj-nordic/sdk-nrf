@@ -49,7 +49,7 @@ extern "C" {
 #define LWM2M_CARRIER_EVENT_REBOOT	   9
 /** Modem domain event received. */
 #define LWM2M_CARRIER_EVENT_MODEM_DOMAIN   10
-/** Data received through the App Data Container object */
+/** Data received through the App Data Container object or the Binary App Data Container object. */
 #define LWM2M_CARRIER_EVENT_APP_DATA       11
 /** Request to initialize the modem. */
 #define LWM2M_CARRIER_EVENT_MODEM_INIT     12
@@ -109,6 +109,16 @@ typedef struct {
 typedef uint32_t lwm2m_carrier_event_modem_domain_t;
 
 /**
+ * @name LwM2M carrier library app data container objects.
+ * @{
+ */
+/** Binary App Data Container Object. */
+#define LWM2M_CARRIER_OBJECT_BINARY_APP_DATA_CONTAINER 19
+/** App Data Container Object. */
+#define LWM2M_CARRIER_OBJECT_APP_DATA_CONTAINER        10250
+/** @} */
+
+/**
  * @brief LwM2M carrier library app data event structure.
  */
 typedef struct {
@@ -116,7 +126,10 @@ typedef struct {
 	const uint8_t *buffer;
 	/** Number of bytes received. */
 	size_t buffer_len;
-	/** Path to the resource or resource instance that received the data. */
+	/** Path to the resource or resource instance that received the data. The first value must
+	 *  be either \c LWM2M_CARRIER_OBJECT_BINARY_APP_DATA_CONTAINER or
+	 *  \c LWM2M_CARRIER_OBJECT_APP_DATA_CONTAINER
+	 */
 	uint16_t path[4];
 	/** Length of the path. */
 	uint8_t path_len;
