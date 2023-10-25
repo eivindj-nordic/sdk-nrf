@@ -863,6 +863,7 @@ static int nrf91_socket_offload_fcntl(int fd, int cmd, va_list args)
 	return retval;
 }
 
+#ifdef CONFIG_NRF_MODEM_POLL_ZEPHYR
 static struct nrf_sock_ctx *find_ctx(int fd)
 {
 	for (size_t i = 0; i < ARRAY_SIZE(offload_ctx); i++) {
@@ -948,12 +949,68 @@ static int nrf91_poll_update(struct nrf_sock_ctx *ctx, struct zsock_pollfd *pfd,
 	return 0;
 }
 
+
+#else /* CONFIG_NRF_MODEM_POLL_ZEPHYR */
+static inline int nrf91_socket_offload_poll(struct pollfd *fds, int nfds,
+					    int timeout)
+{
+	int retval = 0;
+	struct nrf_pollfd tmp[NRF_MODEM_MAX_SOCKET_COUNT] = { 0 };
+	void *obj;
+
+	for (int i = 0; i < nfds; i++) {
+		tmp[i].events = 0;
+		fds[i].revents = 0;
+
+		if (fds[i].fd < 0) {
+			/* Per POSIX, negative fd's are just ignored */
+			tmp[i].fd = fds[i].fd;
+			continue;
+		} else {
+			obj = z_get_fd_obj(fds[i].fd,
+					   (const struct fd_op_vtable *)
+						     &nrf91_socket_fd_op_vtable,
+					   ENOTSUP);
+			if (obj != NULL) {
+				/* Offloaded socket found. */
+				tmp[i].fd = OBJ_TO_SD(obj);
+			} else {
+				/* Non-offloaded socket, return an error. */
+				fds[i].revents = POLLNVAL;
+				retval++;
+			}
+		}
+
+		tmp[i].events = fds[i].events;
+	}
+
+	if (retval > 0) {
+		return retval;
+	}
+
+	retval = nrf_poll((struct nrf_pollfd *)&tmp, nfds, timeout);
+
+	/* Translate the API from nRF to native. */
+	/* No need to translate .events, shall be untouched by poll() */
+	for (int i = 0; i < nfds; i++) {
+		if (fds[i].fd < 0) {
+			continue;
+		}
+
+		fds[i].revents = tmp[i].revents;
+	}
+
+	return retval;
+}
+#endif /* CONFIG_NRF_MODEM_POLL_ZEPHYR */
+
 static int nrf91_socket_offload_ioctl(void *obj, unsigned int request,
 				      va_list args)
 {
 	int sd = OBJ_TO_SD(obj);
 
 	switch (request) {
+#ifdef CONFIG_NRF_MODEM_POLL_ZEPHYR
 	case ZFD_IOCTL_POLL_PREPARE: {
 		struct zsock_pollfd *pfd;
 		struct k_poll_event **pev;
@@ -986,7 +1043,25 @@ static int nrf91_socket_offload_ioctl(void *obj, unsigned int request,
 
 		return 0;
 	}
+#else /* CONFIG_NRF_MODEM_POLL_ZEPHYR */
+	case ZFD_IOCTL_POLL_PREPARE:
+		return -EXDEV;
 
+	case ZFD_IOCTL_POLL_UPDATE:
+		return -EOPNOTSUPP;
+
+	case ZFD_IOCTL_POLL_OFFLOAD: {
+		struct zsock_pollfd *fds;
+		int nfds;
+		int timeout;
+
+		fds = va_arg(args, struct zsock_pollfd *);
+		nfds = va_arg(args, int);
+		timeout = va_arg(args, int);
+
+		return nrf91_socket_offload_poll(fds, nfds, timeout);
+	}
+#endif /* CONFIG_NRF_MODEM_POLL_ZEPHYR */
 	/* Otherwise, just forward to offloaded fcntl()
 	 * In Zephyr, fcntl() is just an alias of ioctl().
 	 */
