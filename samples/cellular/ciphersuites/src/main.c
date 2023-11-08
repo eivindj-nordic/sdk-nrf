@@ -4,14 +4,21 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
+#include <stdbool.h>
+#include <stdint.h>
 #include <string.h>
-
+#include <errno.h>
 #include <zephyr/kernel.h>
 #include <zephyr/net/socket.h>
 #include <zephyr/net/tls_credentials.h>
+#include <zephyr/net/net_ip.h>
+#include <zephyr/sys/printk.h>
+#include <zephyr/sys/util.h>
+#include <zephyr/toolchain/llvm.h>
 #include <modem/lte_lc.h>
 #include <modem/nrf_modem_lib.h>
 #include <modem/modem_key_mgmt.h>
+#include <nrf_socket.h>
 
 #define HTTPS_PORT 443
 

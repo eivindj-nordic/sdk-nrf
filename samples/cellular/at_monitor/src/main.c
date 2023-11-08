@@ -4,14 +4,16 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
-#include <string.h>
-#include <zephyr/kernel.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <nrf_modem_at.h>
-#include <modem/nrf_modem_lib.h>
+#include <string.h>
+#include <errno.h>
+#include <zephyr/kernel.h>
+#include <zephyr/sys/printk.h>
 #include <modem/at_monitor.h>
 #include <modem/modem_info.h>
+#include <modem/nrf_modem_lib.h>
+#include <nrf_modem_at.h>
+#include <drivers/nrfx_utils_internal.h>
 
 #define ENABLE 1
 #define DISABLE 0

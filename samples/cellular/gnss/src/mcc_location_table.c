@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
+#include <stddef.h>
 #include <zephyr/sys/util.h>
 
 #include "mcc_location_table.h"

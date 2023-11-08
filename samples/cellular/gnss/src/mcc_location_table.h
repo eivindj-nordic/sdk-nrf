@@ -7,6 +7,8 @@
 #ifndef MCC_LOCATION_TABLE_H_
 #define MCC_LOCATION_TABLE_H_
 
+#include <stdint.h>
+
 struct __attribute__ ((__packed__)) mcc_table {
 	uint8_t confidence;    /* percentage, 0-100 */
 	uint8_t unc_semiminor; /* scaled, see GNSS interface for details */

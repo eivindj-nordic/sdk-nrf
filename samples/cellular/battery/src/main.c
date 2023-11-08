@@ -4,17 +4,17 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
-#include <stdint.h>
-#include <stdio.h>
-#include <string.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <errno.h>
 #include <zephyr/kernel.h>
-#include <zephyr/logging/log.h>
+#include <zephyr/kernel/thread_stack.h>
 #include <zephyr/net/socket.h>
-#include <modem/at_monitor.h>
+#include <zephyr/net/net_ip.h>
+#include <zephyr/sys/printk.h>
 #include <modem/lte_lc.h>
 #include <modem/modem_battery.h>
 #include <modem/nrf_modem_lib.h>
-#include <nrf_modem_at.h>
 
 #define WORK_Q_STACK_SIZE 1024
 #define WORK_Q_PRIORITY 5

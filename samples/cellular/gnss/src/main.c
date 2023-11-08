@@ -4,17 +4,35 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
+#include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <math.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
-#include <nrf_modem_at.h>
+#include <zephyr/logging/log_core.h>
+#include <zephyr/sys/util_loops.h>
+#include <zephyr/sys/util_macro.h>
+#include <zephyr/toolchain/gcc.h>
 #include <nrf_modem_gnss.h>
 #include <modem/lte_lc.h>
 #include <modem/nrf_modem_lib.h>
 #include <date_time.h>
+#include <drivers/nrfx_utils_internal.h>
+
+#if !defined(CONFIG_GNSS_SAMPLE_ASSISTANCE_NONE)
+#include <zephyr/sys/__assert.h>
+#endif /* CONFIG_GNSS_SAMPLE_ASSISTANCE_NONE */
+
+#if !defined(CONFIG_GNSS_SAMPLE_ASSISTANCE_NONE) || defined(CONFIG_GNSS_SAMPLE_MODE_TTFF_TEST)
+#include <zephyr/kernel/thread_stack.h>
+#endif /* !CONFIG_GNSS_SAMPLE_ASSISTANCE_NONE || CONFIG_GNSS_SAMPLE_MODE_TTFF_TEST */
+
+#if defined(CONFIG_GNSS_SAMPLE_ASSISTANCE_NRF_CLOUD)
+#include <string.h>
+#include <nrf_modem_at.h>
+#endif /* CONFIG_GNSS_SAMPLE_ASSISTANCE_NRF_CLOUD */
 
 LOG_MODULE_REGISTER(gnss_sample, CONFIG_GNSS_SAMPLE_LOG_LEVEL);
 

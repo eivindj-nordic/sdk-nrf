@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
-#include <zephyr/kernel.h>
+#include <zephyr/sys/printk.h>
 #include <mgmt/fmfu_mgmt.h>
 #include <mgmt/fmfu_mgmt_stat.h>
 #include <modem/modem_info.h>

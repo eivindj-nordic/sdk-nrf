@@ -4,14 +4,25 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
+#include <stdbool.h>
+#include <stdint.h>
+#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
+#include <time.h>
 #include <zephyr/kernel.h>
 #include <zephyr/sys/timeutil.h>
+#include <zephyr/sys/util_macro.h>
+#include <zephyr/sys/util_loops.h>
 #include <zephyr/settings/settings.h>
+#include <zephyr/toolchain/gcc.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/logging/log_core.h>
 #include <nrf_modem_at.h>
 #include <nrf_modem_gnss.h>
+
+#include <drivers/nrfx_utils_internal.h>
 
 #include "assistance.h"
 #include "factory_almanac_v2.h"

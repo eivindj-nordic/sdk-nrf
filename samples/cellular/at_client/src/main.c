@@ -4,13 +4,11 @@
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
  */
 
-#include <zephyr/kernel.h>
-#include <stdio.h>
-#include <string.h>
-#include <modem/nrf_modem_lib.h>
-#include <zephyr/drivers/uart.h>
-#include <zephyr/drivers/clock_control.h>
+#include <zephyr/sys/printk.h>
 #include <zephyr/drivers/clock_control/nrf_clock_control.h>
+#include <zephyr/sys/notify.h>
+#include <zephyr/sys/onoff.h>
+#include <modem/nrf_modem_lib.h>
 
 /* To strictly comply with UART timing, enable external XTAL oscillator */
 void enable_xtal(void)
