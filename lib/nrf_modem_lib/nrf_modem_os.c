@@ -56,7 +56,7 @@ static struct thread_monitor_entry *thread_monitor_entry_get(k_tid_t id)
 {
 	struct thread_monitor_entry *entry = thread_event_monitor;
 	struct thread_monitor_entry *new_entry = thread_event_monitor;
-	int entry_age, oldest_entry_age = 0;
+	int oldest_entry_cnt = 0;
 
 	for ( ; PART_OF_ARRAY(thread_event_monitor, entry); entry++) {
 		if (entry->id == id) {
@@ -68,9 +68,8 @@ static struct thread_monitor_entry *thread_monitor_entry_get(k_tid_t id)
 		}
 
 		/* Identify oldest entry. */
-		entry_age = rpc_event_cnt - entry->cnt;
-		if (entry_age > oldest_entry_age) {
-			oldest_entry_age = entry_age;
+		if (entry->cnt < oldest_entry_cnt) {
+			oldest_entry_cnt = entry->cnt;
 			new_entry = entry;
 		}
 	}
