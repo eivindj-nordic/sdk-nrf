@@ -10,4 +10,6 @@ find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(http_server)
 
 target_sources(app PRIVATE src/main.c)
+target_sources(app PRIVATE src/credentials_provision.c)
+target_include_directories(app PRIVATE src)
 target_include_directories(app PRIVATE credentials)

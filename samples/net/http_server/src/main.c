@@ -1,7 +1,8 @@
 /*
+ * Copyright (c) 2019 Intel Corporation
  * Copyright (c) 2024 Nordic Semiconductor ASA
  *
- * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 #include <stdio.h>
@@ -12,7 +13,6 @@
 #include <zephyr/logging/log_ctrl.h>
 #include <zephyr/net/net_ip.h>
 #include <zephyr/net/socket.h>
-#include <zephyr/net/tls_credentials.h>
 #include <zephyr/sys/reboot.h>
 
 #include <zephyr/net/net_config.h>
@@ -26,12 +26,13 @@
 
 #include <dk_buttons_and_leds.h>
 
+#include "credentials_provision.h"
+
 LOG_MODULE_REGISTER(http_server, CONFIG_HTTP_SERVER_SAMPLE_LOG_LEVEL);
 
 #define SERVER_PORT			CONFIG_HTTP_SERVER_SAMPLE_SERVER_PORT
-#define SERVER_PORT_TLS			CONFIG_HTTP_SERVER_SAMPLE_SERVER_PORT_TLS
+#define SERVER_PORT_IPV6		CONFIG_HTTP_SERVER_SAMPLE_SERVER_PORT_IPV6
 #define MAX_CLIENT_QUEUE		CONFIG_HTTP_SERVER_SAMPLE_CLIENTS_MAX
-#define SERVER_CERTIFICATE_SEC_TAG	CONFIG_HTTP_SERVER_SAMPLE_SERVER_CERTIFICATE_SEC_TAG
 #define STACK_SIZE			CONFIG_HTTP_SERVER_SAMPLE_STACK_SIZE
 #define THREAD_PRIORITY			K_PRIO_COOP(CONFIG_NUM_COOP_PRIORITIES - 1)
 
@@ -39,18 +40,11 @@ LOG_MODULE_REGISTER(http_server, CONFIG_HTTP_SERVER_SAMPLE_LOG_LEVEL);
 #define L4_EVENT_MASK (NET_EVENT_L4_CONNECTED | NET_EVENT_L4_DISCONNECTED)
 #define CONN_LAYER_EVENT_MASK (NET_EVENT_CONN_IF_FATAL_ERROR)
 
-#if defined(CONFIG_NET_SOCKETS_SOCKOPT_TLS)
-/* Include the server certificate and private key. These are intended for testing and should
- * not be used for anything else.
- */
-#include "public_certificate.pem.h"
-#include "private_key.pem.h"
-#endif /* defined(CONFIG_NET_SOCKETS_SOCKOPT_TLS) */
-
 /* Macro called upon a fatal error, reboots the device. */
-#define FATAL_ERROR()					\
-	LOG_ERR("Fatal error! Rebooting the device.");	\
-	LOG_PANIC();					\
+#define FATAL_ERROR()								\
+	LOG_ERR("Fatal error!%s", IS_ENABLED(CONFIG_RESET_ON_FATAL_ERROR) ?	\
+				  " Rebooting the device" : "");		\
+	LOG_PANIC();								\
 	IF_ENABLED(CONFIG_REBOOT, (sys_reboot(0)))
 
 /* Zephyr NET management event callback structures. */
@@ -82,6 +76,8 @@ static uint8_t led_states[2];
 #define response_400 "HTTP/1.1 400 Bad Request\r\n\r\n"
 #define response_403 "HTTP/1.1 403 Forbidden\r\n\r\n"
 #define response_404 "HTTP/1.1 404 Not Found\r\n\r\n"
+#define response_405 "HTTP/1.1 405 Method Not Allowed\r\n\r\n"
+#define response_500 "HTTP/1.1 500 Internal Server Error\r\n\r\n"
 
 /* Processing threads for incoming connections */
 K_THREAD_STACK_ARRAY_DEFINE(tcp4_handler_stack, MAX_CLIENT_QUEUE, STACK_SIZE);
@@ -99,9 +95,9 @@ K_THREAD_DEFINE(tcp6_thread_id, STACK_SIZE,
 		THREAD_PRIORITY, 0, -1);
 
 static K_SEM_DEFINE(network_connected_sem, 0, 1);
-static int tcp4_listen_sock;
+static int tcp4_sock;
 static int tcp4_accepted[MAX_CLIENT_QUEUE];
-static int tcp6_listen_sock;
+static int tcp6_sock;
 static int tcp6_accepted[MAX_CLIENT_QUEUE];
 static struct http_parser_settings parser_settings;
 
@@ -144,14 +140,14 @@ static int led_update(uint8_t index, uint8_t state)
 		led_states[index] = state;
 	} else {
 		LOG_WRN("Illegal value %d written to LED %d", state, index);
-		return -1;
+		return -EBADMSG;
 	}
 
 	ret = dk_set_led(index, led_states[index]);
 	if (ret) {
 		LOG_ERR("Failed to update LED %d state to %d", index, led_states[index]);
 		FATAL_ERROR();
-		return -1;
+		return -EIO;
 	}
 
 	LOG_INF("LED %d state updated to %d", index, led_states[index]);
@@ -159,14 +155,14 @@ static int led_update(uint8_t index, uint8_t state)
 	return 0;
 }
 
-static int handle_put(struct http_req *request)
+static int handle_put(struct http_req *request, char *response, size_t response_size)
 {
 	int ret;
 	uint8_t led_id, led_index;
 
 	if (request->body_len < 1) {
 		LOG_ERR("No request body");
-		return -EINVAL;
+		return -EBADMSG;
 	}
 
 	/* Get LED ID */
@@ -188,6 +184,12 @@ static int handle_put(struct http_req *request)
 	if (ret) {
 		LOG_WRN("Update failed for LED %d", led_index);
 		return ret;
+	}
+
+	ret = snprintk(response, response_size, "%sContent-Length: %d\r\n\r\n",
+		       response_200, 0);
+	if ((ret < 0) || (ret >= response_size)) {
+		return -ENOBUFS;
 	}
 
 	return 0;
@@ -219,7 +221,8 @@ static int handle_get(struct http_req *request, char *response, size_t response_
 		return -ENOBUFS;
 	}
 
-	ret = snprintk(response, response_size, "%sContent-Length: %d\r\n\r\n%s",
+	ret = snprintk(response, response_size,
+		       "%sContent-Type: text/plain\r\n\r\nContent-Length: %d\r\n\r\n%s",
 		       response_200, strlen(body), body);
 	if ((ret < 0) || (ret >= response_size)) {
 		return -ENOBUFS;
@@ -256,18 +259,21 @@ static void handle_http_request(struct http_req *request)
 	/* Handle the request method */
 	switch (request->method) {
 	case HTTP_PUT:
-		ret = handle_put(request);
+		ret = handle_put(request, get_response_buffer, sizeof(get_response_buffer));
 		if (ret) {
-			LOG_WRN("Incoming HTTP PUT request, error: %d", ret);
-			resp_ptr = response_400;
+			LOG_WRN("Incoming HTTP GET request, error: %d", ret);
+			resp_ptr = (ret == -EINVAL) ? response_404 :
+				   (ret == -EBADMSG) ? response_400 : response_500;
+			break;
 		}
 
+		resp_ptr = get_response_buffer;
 		break;
 	case HTTP_GET:
 		ret = handle_get(request, get_response_buffer, sizeof(get_response_buffer));
 		if (ret) {
 			LOG_WRN("Incoming HTTP GET request, error: %d", ret);
-			resp_ptr = response_404;
+			resp_ptr = (ret == -EINVAL) ? response_404 : response_500;
 			break;
 		}
 
@@ -275,7 +281,7 @@ static void handle_http_request(struct http_req *request)
 		break;
 	default:
 		LOG_WRN("Unsupported request method");
-		resp_ptr = response_403;
+		resp_ptr = response_405;
 		break;
 	}
 
@@ -365,42 +371,82 @@ static int setup_server(int *sock, struct sockaddr *bind_addr, socklen_t bind_ad
 	int ret;
 
 	if (IS_ENABLED(CONFIG_NET_SOCKETS_SOCKOPT_TLS)) {
-		*sock = socket(bind_addr->sa_family, SOCK_STREAM, IPPROTO_TLS_1_2);
+		/* Run the Zephyr Native TLS stack (MBed TLS) in the application core instead of
+		 * using the TLS stack on the modem.
+		 * This is needed because the modem does not support TLS in server mode.
+		 *
+		 * This is done by using (SOCK_STREAM | SOCK_NATIVE_TLS) as socket type when
+		 * building for a nRF91 Series board.
+		 */
+		int type = IS_ENABLED(CONFIG_NRF_MODEM_LIB) ? SOCK_STREAM | SOCK_NATIVE_TLS :
+							      SOCK_STREAM;
+
+		*sock = socket(bind_addr->sa_family, type, IPPROTO_TLS_1_2);
 	} else {
 		*sock = socket(bind_addr->sa_family, SOCK_STREAM, IPPROTO_TCP);
 	}
 
 	if (*sock < 0) {
-		LOG_ERR("Failed to create TCP socket: %d", errno);
+		LOG_ERR("Failed to create socket: %d", -errno);
 		return -errno;
 	}
 
 	if (IS_ENABLED(CONFIG_NET_SOCKETS_SOCKOPT_TLS)) {
 		sec_tag_t sec_tag_list[] = {
-			SERVER_CERTIFICATE_SEC_TAG,
+			CONFIG_HTTP_SERVER_SAMPLE_SERVER_CERTIFICATE_SEC_TAG,
 		};
 
 		ret = setsockopt(*sock, SOL_TLS, TLS_SEC_TAG_LIST,
 				 sec_tag_list, sizeof(sec_tag_list));
 		if (ret < 0) {
-			LOG_ERR("Failed to set TCP secure option %d", errno);
-			ret = -errno;
+			LOG_ERR("Failed to set security tag list %d", -errno);
+			return -errno;
+		}
+
+		if (IS_ENABLED(CONFIG_HTTP_SERVER_SAMPLE_PEER_VERIFICATION_REQUIRE)) {
+			int require = 2;
+
+			ret = zsock_setsockopt(*sock, SOL_TLS, TLS_PEER_VERIFY,
+					       &require,
+					       sizeof(require));
+			if (ret < 0) {
+				LOG_ERR("Failed to set peer verification option %d", -errno);
+				return -errno;
+			}
 		}
 	}
 
 	ret = bind(*sock, bind_addr, bind_addrlen);
 	if (ret < 0) {
-		LOG_ERR("Failed to bind TCP socket %d", errno);
+		LOG_ERR("Failed to bind socket %d", -errno);
 		return -errno;
 	}
 
 	ret = listen(*sock, MAX_CLIENT_QUEUE);
 	if (ret < 0) {
-		LOG_ERR("Failed to listen on TCP socket %d", errno);
-		ret = -errno;
+		LOG_ERR("Failed to listen on socket %d", -errno);
+		return -errno;
 	}
 
 	return ret;
+}
+
+static void server_poll(int sock)
+{
+	struct pollfd fd = {
+		.fd = sock,
+		.events = POLLIN
+	};
+
+	int ret = poll(&fd, 1, -1);
+
+	if (ret < 0) {
+		printk("Poll failed: %d\n", -errno);
+		return;
+	} else if ((fd.revents & POLLIN) != POLLIN) {
+		printk("Got different event than POLLIN: %d\n", fd.revents);
+		return;
+	}
 }
 
 static void client_conn_handler(void *ptr1, void *ptr2, void *ptr3)
@@ -477,6 +523,8 @@ static void process_tcp(int *sock, int *accepted)
 	socklen_t client_addr_len = sizeof(client_addr);
 	char addr_str[INET6_ADDRSTRLEN];
 
+	server_poll(*sock);
+
 	client = accept(*sock, (struct sockaddr *)&client_addr,
 			&client_addr_len);
 	if (client < 0) {
@@ -530,24 +578,20 @@ static void process_tcp4(void)
 	int ret;
 	struct sockaddr_in addr4 = {
 		.sin_family = AF_INET,
-		.sin_port = IS_ENABLED(CONFIG_NET_SOCKETS_SOCKOPT_TLS) ? htons(SERVER_PORT_TLS) :
-									 htons(SERVER_PORT),
+		.sin_port = htons(SERVER_PORT),
 	};
 
-	ret = setup_server(&tcp4_listen_sock, (struct sockaddr *)&addr4, sizeof(addr4));
+	ret = setup_server(&tcp4_sock, (struct sockaddr *)&addr4, sizeof(addr4));
 	if (ret < 0) {
 		LOG_ERR("Failed to create IPv4 socket %d", ret);
 		FATAL_ERROR();
 		return;
 	}
 
-	LOG_INF("Waiting for IPv4 HTTP%s connections on port %d, sock %d",
-		(IS_ENABLED(CONFIG_NET_SOCKETS_SOCKOPT_TLS) ? "(S)" : ""),
-		(IS_ENABLED(CONFIG_NET_SOCKETS_SOCKOPT_TLS) ? SERVER_PORT_TLS : SERVER_PORT),
-		tcp4_listen_sock);
+	LOG_INF("Waiting for IPv4 HTTP connections on port %d, sock %d", SERVER_PORT, tcp4_sock);
 
 	while (true) {
-		process_tcp(&tcp4_listen_sock, tcp4_accepted);
+		process_tcp(&tcp4_sock, tcp4_accepted);
 	}
 }
 
@@ -557,23 +601,21 @@ static void process_tcp6(void)
 	int ret;
 	struct sockaddr_in6 addr6 = {
 		.sin6_family = AF_INET6,
-		.sin6_port = htons(SERVER_PORT),
+		.sin6_port = htons(SERVER_PORT_IPV6),
 	};
 
-	ret = setup_server(&tcp6_listen_sock, (struct sockaddr *)&addr6, sizeof(addr6));
+	ret = setup_server(&tcp6_sock, (struct sockaddr *)&addr6, sizeof(addr6));
 	if (ret < 0) {
 		LOG_ERR("Failed to create IPv6 socket %d", ret);
 		FATAL_ERROR();
 		return;
 	}
 
-	LOG_INF("Waiting for IPv6 HTTP%s connections on port %d, sock %d",
-		(IS_ENABLED(CONFIG_NET_SOCKETS_SOCKOPT_TLS) ? "(S)" : ""),
-		(IS_ENABLED(CONFIG_NET_SOCKETS_SOCKOPT_TLS) ? SERVER_PORT_TLS : SERVER_PORT),
-		tcp6_listen_sock);
+	LOG_INF("Waiting for IPv6 HTTP connections on port %d, sock %d",
+		SERVER_PORT_IPV6, tcp6_sock);
 
 	while (true) {
-		process_tcp(&tcp6_listen_sock, tcp6_accepted);
+		process_tcp(&tcp6_sock, tcp6_accepted);
 	}
 }
 
@@ -582,12 +624,12 @@ void start_listener(void)
 	for (size_t i = 0; i < MAX_CLIENT_QUEUE; i++) {
 		if (IS_ENABLED(CONFIG_NET_IPV4)) {
 			tcp4_accepted[i] = -1;
-			tcp4_listen_sock = -1;
+			tcp4_sock = -1;
 		}
 
 		if (IS_ENABLED(CONFIG_NET_IPV6)) {
 			tcp6_accepted[i] = -1;
-			tcp6_listen_sock = -1;
+			tcp6_sock = -1;
 		}
 	}
 
@@ -606,26 +648,14 @@ int main(void)
 
 	LOG_INF("HTTP Server sample started");
 
-#if defined(CONFIG_NET_SOCKETS_SOCKOPT_TLS)
-	ret = tls_credential_add(SERVER_CERTIFICATE_SEC_TAG,
-				 TLS_CREDENTIAL_SERVER_CERTIFICATE,
-				 server_certificate,
-				 sizeof(server_certificate));
-	if (ret < 0) {
-		LOG_ERR("Failed to register public certificate: %d", ret);
-		FATAL_ERROR();
-		return ret;
+	if (IS_ENABLED(CONFIG_NET_SOCKETS_SOCKOPT_TLS)) {
+		ret = credentials_provision();
+		if (ret) {
+			LOG_ERR("credentials_provision, error: %d", ret);
+			FATAL_ERROR();
+			return ret;
+		}
 	}
-
-	ret = tls_credential_add(SERVER_CERTIFICATE_SEC_TAG,
-				 TLS_CREDENTIAL_PRIVATE_KEY,
-				 private_key, sizeof(private_key));
-	if (ret < 0) {
-		LOG_ERR("Failed to register private key: %d", ret);
-		FATAL_ERROR();
-		return ret;
-	}
-#endif /* CONFIG_NET_SOCKETS_SOCKOPT_TLS */
 
 	parser_init();
 
@@ -658,16 +688,6 @@ int main(void)
 		LOG_ERR("conn_mgr_all_if_connect, error: %d", ret);
 		FATAL_ERROR();
 		return ret;
-	}
-
-	/* Resend connection status if the sample is built for the Native Simulator.
-	 * This is necessary because the network interface is automatically brought up
-	 * at SYS_INIT() before main() is called.
-	 * This means that NET_EVENT_L4_CONNECTED fires before the
-	 * appropriate handler l4_event_handler() is registered.
-	 */
-	if (IS_ENABLED(CONFIG_BOARD_NATIVE_SIM)) {
-		conn_mgr_mon_resend_status();
 	}
 
 	k_sem_take(&network_connected_sem, K_FOREVER);
