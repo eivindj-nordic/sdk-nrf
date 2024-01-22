@@ -62,6 +62,9 @@ struct http_req {
 	size_t body_len;
 };
 
+#define ACCEPT_FDS CONFIG_POSIX_MAX_FDS - 2
+
+K_SEM_DEFINE(accept_sem, ACCEPT_FDS, ACCEPT_FDS);
 /* Forward declarations */
 static void process_tcp4(void);
 static void process_tcp6(void);
@@ -502,6 +505,8 @@ static void client_conn_handler(void *ptr1, void *ptr2, void *ptr3)
 
 	*sock = -1;
 	*in_use = NULL;
+
+	k_sem_give(&accept_sem);
 }
 
 static int get_free_slot(int *accepted)
@@ -523,7 +528,7 @@ static void process_tcp(int *sock, int *accepted)
 	socklen_t client_addr_len = sizeof(client_addr);
 	char addr_str[INET6_ADDRSTRLEN];
 
-	server_poll(*sock);
+	k_sem_take(&accept_sem, K_FOREVER);
 
 	client = accept(*sock, (struct sockaddr *)&client_addr,
 			&client_addr_len);
