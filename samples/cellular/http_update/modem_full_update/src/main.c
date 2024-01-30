@@ -26,6 +26,10 @@
 #include <modem/modem_key_mgmt.h>
 #include <net/fota_download.h>
 
+#include <zephyr/logging/log.h>
+
+LOG_MODULE_REGISTER(app, LOG_LEVEL_DBG);
+
 #define TLS_SEC_TAG 42
 
 #ifdef CONFIG_USE_HTTPS
@@ -302,6 +306,21 @@ static int apply_fmfu_from_ext_flash(bool valid_init)
 		printk("fmfu_fdev_load failed: %d\n", err);
 		return err;
 	}
+
+	struct nrf_modem_bootloader_fw_segment segments[] = {
+		{.start_addr = 0x00006000, .end_addr = 0x0000FFFF},
+		{.start_addr = 0x00050000, .end_addr = 0x0023BFFF},
+		{.start_addr = 0x0027C000, .end_addr = 0x0027FFFF},
+	};
+	struct nrf_modem_bootloader_digest digest_buffer;
+
+	err = nrf_modem_bootloader_digest(segments, ARRAY_SIZE(segments), &digest_buffer);
+
+	printk("Full digest: ");
+	for (int i = 0; i < ARRAY_SIZE(digest_buffer.data); i++) {
+		printk("%x", digest_buffer.data[i]);
+	}
+	printk("\n");
 
 	err = nrf_modem_lib_shutdown();
 	if (err != 0) {
