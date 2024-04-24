@@ -41,6 +41,7 @@ jobs:
       with:
         git-fetch-depth: 0
         git-ref: ${{ github.event.pull_request.head.sha }}
+        west-token: ${{ secrets.NCS_GITHUB_TOKEN }}
         path: ncs/${{ inputs.path }}
         west-update-args: '-n zephyr bsim'
 
