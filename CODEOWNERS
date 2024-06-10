@@ -167,6 +167,7 @@ Kconfig*                                  @tejlmand
 /samples/crypto/                          @frkv @Vge0rge @vili-nordic @mswarowsky
 /samples/debug/memfault/                  @nrfconnect/ncs-cia
 /samples/debug/ppi_trace/                 @nordic-krch @anangl
+/samples/dect/                            @lemrey @eivindj-nordic
 /samples/hw_id/                           @nrfconnect/ncs-cia
 /samples/edge_impulse/                    @pdunaj
 /samples/esb/                             @lemrey
