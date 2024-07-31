@@ -18,8 +18,6 @@
  */
 
 #if CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API
-#include <net/download_client_deprecated.h>
-#else
 
 #ifndef DOWNLOAD_CLIENT_H__
 #define DOWNLOAD_CLIENT_H__
