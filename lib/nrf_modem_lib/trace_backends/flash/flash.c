@@ -48,6 +48,8 @@ static uint8_t flash_buf[BUF_SIZE];
 
 static bool is_initialized;
 
+static struct k_sem fcb_sem;
+
 static int trace_backend_clear(void);
 
 static size_t buffer_append(const void *data, size_t len)
@@ -87,6 +89,8 @@ static int buffer_flush_to_flash(void)
 		return -ENODATA;
 	}
 
+	k_sem_take(&fcb_sem, K_FOREVER);
+
 	err = fcb_append(&trace_fcb, flash_buf_written, &loc_flush);
 	if (err) {
 		if (IS_ENABLED(CONFIG_NRF_MODEM_TRACE_FLASH_NOSPACE_ERASE_OLDEST)) {
@@ -101,21 +105,22 @@ static int buffer_flush_to_flash(void)
 			err = fcb_walk(&trace_fcb, loc_flush.fe_sector, fcb_walk_callback, NULL);
 			if (err) {
 				LOG_ERR("fcb_walk failed, err %d", err);
-				return err;
+				goto out;
 			}
 
 			/* Erase the oldest sector and append again. */
 			err = fcb_rotate(&trace_fcb);
 			if (err) {
 				LOG_ERR("fcb_rotate failed, err %d", err);
-				return err;
+				goto out;
 			}
 			err = fcb_append(&trace_fcb, flash_buf_written, &loc_flush);
 		}
 
 		if (err) {
 			LOG_ERR("fcb_append failed, err %d", err);
-			return -ENOSPC;
+			err = -ENOSPC;
+			goto out;
 		}
 	}
 
@@ -123,30 +128,35 @@ static int buffer_flush_to_flash(void)
 		trace_fcb.fap, FCB_ENTRY_FA_DATA_OFF(loc_flush), flash_buf, flash_buf_written);
 	if (err) {
 		LOG_ERR("flash_area_write failed, err %d", err);
-		return err;
+		goto out;
 	}
 
 	err = fcb_append_finish(&trace_fcb, &loc_flush);
 	if (err) {
 		LOG_ERR("fcb_append_finish failed, err %d", err);
-		return err;
+		goto out;
 	}
 
 	flash_buf_written = 0;
 
-	return 0;
+out:
+	k_sem_give(&fcb_sem);
+	return err;
 }
 
 static int trace_flash_erase(void)
 {
 	int err;
 
+	k_sem_take(&fcb_sem, K_FOREVER);
 	LOG_INF("Erasing external flash");
 
 	err = flash_area_erase(modem_trace_area, 0, TRACE_SIZE);
 	if (err) {
 		LOG_ERR("flash_area_erase error: %d", err);
 	}
+
+	k_sem_give(&fcb_sem);
 
 	return err;
 }
@@ -159,6 +169,8 @@ int trace_backend_init(trace_backend_processed_cb trace_processed_cb)
 	if (trace_processed_cb == NULL) {
 		return -EFAULT;
 	}
+
+	k_sem_init(&fcb_sem, 1, 1);
 
 	trace_processed_callback = trace_processed_cb;
 
@@ -209,9 +221,11 @@ int trace_backend_init(trace_backend_processed_cb trace_processed_cb)
 	LOG_DBG("Sectors: %d, first sector: %p, sector size: %d",
 		f_sector_cnt, trace_flash_sectors, trace_flash_sectors[0].fs_size);
 
+	k_sem_take(&fcb_sem, K_FOREVER);
 	err = fcb_init(FIXED_PARTITION_ID(MODEM_TRACE), &trace_fcb);
 	if (err) {
 		LOG_ERR("fcb_init error: %d", err);
+		k_sem_give(&fcb_sem);
 		return err;
 	}
 
@@ -229,6 +243,7 @@ int trace_backend_init(trace_backend_processed_cb trace_processed_cb)
 
 	LOG_DBG("Modem trace flash storage initialized\n");
 
+	k_sem_give(&fcb_sem);
 	return 0;
 }
 
@@ -237,6 +252,9 @@ size_t trace_backend_data_size(void)
 	return trace_bytes_unread;
 }
 
+/* Read from offset
+ * FCB sem has to be taken before calling this function!
+ */
 static int read_from_offset(void *buf, size_t len)
 {
 	int err;
@@ -283,8 +301,11 @@ int trace_backend_read(void *buf, size_t len)
 		return -EINVAL;
 	}
 
+	k_sem_take(&fcb_sem, K_FOREVER);
+
 	if (read_offset != 0) {
-		return read_from_offset(buf, len);
+		err = read_from_offset(buf, len);
+		goto out;
 	}
 
 	err = fcb_getnext(&trace_fcb, &loc);
@@ -293,7 +314,8 @@ int trace_backend_read(void *buf, size_t len)
 		loc.fe_sector = 0;
 		loc.fe_elem_off = 0;
 		sector = NULL;
-		return -ENODATA;
+		err = -ENODATA;
+		goto out;
 	} else if (err == -ENOTSUP && flash_buf_written) {
 		to_read = MIN(flash_buf_written, len);
 		memcpy(buf, flash_buf, to_read);
@@ -309,18 +331,24 @@ int trace_backend_read(void *buf, size_t len)
 		if (sector) {
 			err = fcb_rotate(&trace_fcb);
 			if (err) {
-				return to_read;
+				err = to_read;
+				goto out;
 			}
 			sector = NULL;
 		}
 
-		return to_read;
+		err = to_read;
+		goto out;
 
 	} else if (err) {
-		return err;
+		goto out;
 	}
 
-	return read_from_offset(buf, len);
+	err = read_from_offset(buf, len);
+
+out:
+	k_sem_give(&fcb_sem);
+	return err;
 }
 
 static int stream_write(const void *buf, size_t len)
@@ -376,6 +404,7 @@ int trace_backend_clear(void)
 		return -EPERM;
 	}
 
+	k_sem_take(&fcb_sem, K_FOREVER);
 	LOG_DBG("Clearing trace storage");
 	flash_buf_written = 0;
 	err = fcb_clear(&trace_fcb);
@@ -385,6 +414,8 @@ int trace_backend_clear(void)
 	trace_bytes_unread = 0;
 	read_offset = 0;
 	sector = NULL;
+
+	k_sem_give(&fcb_sem);
 
 	return err;
 }
