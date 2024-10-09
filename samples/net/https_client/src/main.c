@@ -25,7 +25,7 @@
 
 #define HTTPS_PORT		"443"
 #define HTTP_HEAD		\
-				"HEAD / HTTP/1.1\r\n"	\
+				"POST /dweet/for/nRF91DK_xabcd416?hello=world HTTP/1.1\r\n"	\
 				"Host: " CONFIG_HTTPS_HOSTNAME ":" HTTPS_PORT "\r\n"		\
 				"Connection: close\r\n\r\n"
 
@@ -44,7 +44,7 @@ static char recv_buf[RECV_BUF_SIZE];
 static K_SEM_DEFINE(network_connected_sem, 0, 1);
 /* Certificate for `example.com` */
 static const char cert[] = {
-	#include "DigiCertGlobalG2.pem.inc"
+	#include "AmazonRootCA1.pem.inc"
 
 	/* Null terminate certificate if running Mbed TLS on the application core.
 	 * Required by TLS credentials API.
