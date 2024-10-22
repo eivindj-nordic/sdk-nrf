@@ -15,7 +15,7 @@
 #include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(fota_download_full_modem, CONFIG_LOG_DEFAULT_LEVEL);
 
-static uint8_t fota_download_fulmodem_buf[CONFIG_FOTA_DOWNLOAD_BUF_SZ];
+static uint8_t fota_download_fulmodem_buf[CONFIG_FOTA_DOWNLOAD_FULL_MODEM_BUF_SZ];
 static const struct device *flash_dev = DEVICE_DT_GET_ANY(jedec_spi_nor);
 
 int fota_download_full_modem_apply_update(void)

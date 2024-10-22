@@ -16,7 +16,6 @@ if (DEFINED CONFIG_NRF_CLOUD_MQTT OR
 endif()
 
 add_subdirectory_ifdef(CONFIG_REST_CLIENT rest_client)
-add_subdirectory_ifdef(CONFIG_FOTA_DOWNLOAD fota_download)
 add_subdirectory_ifdef(CONFIG_AWS_JOBS aws_jobs)
 add_subdirectory_ifdef(CONFIG_AWS_FOTA aws_fota)
 add_subdirectory_ifdef(CONFIG_AWS_IOT aws_iot)
@@ -42,5 +41,14 @@ if (CONFIG_DOWNLOAD_CLIENT)
         add_subdirectory(download_client_deprecated)
     else()
         add_subdirectory(download_client)
+    endif()
+endif()
+
+# Original fota download lib deprecated 2024-10
+if (CONFIG_FOTA_DOWNLOAD)
+    if (CONFIG_FOTA_DOWNLOAD_DEPRECATED_API)
+        add_subdirectory(fota_download_deprecated)
+    else()
+        add_subdirectory(fota_download)
     endif()
 endif()
