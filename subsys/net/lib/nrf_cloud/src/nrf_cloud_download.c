@@ -254,7 +254,12 @@ static int coap_dl(struct nrf_cloud_download_data *const dl)
 #if defined(CONFIG_FOTA_DOWNLOAD) && defined(CONFIG_NRF_CLOUD_FOTA_TYPE_BOOT_SUPPORTED)
 	static char buf[CONFIG_FOTA_DOWNLOAD_RESOURCE_LOCATOR_LENGTH];
 #endif
-	const char *file_path = dl->path;
+#if defined(CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API)
+	/* This is only filename, though we call it URI to simplify the code below. */
+	const char *uri = dl->path;
+#else
+	const char *uri = dl->uri;
+#endif /* CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API */
 	int ret = coap_dl_init();
 
 	if (ret) {
@@ -270,12 +275,12 @@ static int coap_dl(struct nrf_cloud_download_data *const dl)
 #if defined(CONFIG_FOTA_DOWNLOAD) && defined(CONFIG_NRF_CLOUD_FOTA_TYPE_BOOT_SUPPORTED)
 	if (dl->type == NRF_CLOUD_DL_TYPE_FOTA) {
 		/* Copy file path to modifiable buffer and check for a bootloader file */
-		memcpy(buf, dl->path, strlen(dl->path) + 1);
-		ret = fota_download_b1_file_parse(buf);
+		memcpy(buf, dl->uri, strlen(dl->uri) + 1);
+		ret = fota_download_b1_uri_parse(buf);
 
 		if (ret == 0) {
 			/* A bootload file has been found */
-			file_path = buf;
+			uri = buf;
 		}
 	}
 #endif
@@ -405,9 +410,15 @@ static int fota_start(struct nrf_cloud_download_data *const dl)
 	return coap_dl(dl);
 #endif /* CONFIG_NRF_CLOUD_COAP_DOWNLOADS */
 
+#if defined(CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API)
 	return fota_download_start_with_image_type(dl->host, dl->path,
 		dl->dl_cfg.sec_tag_count ? dl->dl_cfg.sec_tag_list[0] : -1,
 		dl->dl_cfg.pdn_id, dl->dl_cfg.frag_size_override, dl->fota.expected_type);
+#else
+	return fota_download_start_with_image_type(dl->uri,
+		dl->dl_host_cfg.sec_tag_count ? dl->dl_cfdl_host_cfgg.sec_tag_list[0] : -1,
+		dl->dl_host_cfg.pdn_id, dl->dl_host_cfg.range_override, dl->fota.expected_type);
+#endif /* CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API */
 
 #endif /* CONFIG_FOTA_DOWNLOAD */
 
@@ -423,7 +434,11 @@ static int dlc_start(struct nrf_cloud_download_data *const dl)
 	return coap_dl(dl);
 #endif /* CONFIG_NRF_CLOUD_COAP_DOWNLOADS */
 
+#if defined(CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API)
 	return download_client_get(dl->dlc, dl->host, &dl->dl_cfg, dl->path, 0);
+#else
+	return download_client_get(dl->dlc, &dl->dl_host_cfg, dl->uri, 0);
+#endif /* CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API */
 }
 
 static int dlc_disconnect(struct nrf_cloud_download_data *const dl)
@@ -432,7 +447,11 @@ static int dlc_disconnect(struct nrf_cloud_download_data *const dl)
 	return coap_dl_disconnect();
 #endif /* CONFIG_NRF_CLOUD_COAP_DOWNLOADS */
 
+#if defined(CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API)
 	return download_client_disconnect(dl->dlc);
+#else
+	return download_client_stop(dl->dlc);
+#endif /* CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API */
 }
 
 static void active_dl_reset(void)
@@ -488,21 +507,28 @@ void nrf_cloud_download_end(void)
 	k_mutex_unlock(&active_dl_mutex);
 }
 
-static bool check_fota_file_path_len(char const *const file_path)
+static bool check_fota_uri_len(char const *const uri)
 {
 #if defined(CONFIG_FOTA_DOWNLOAD)
 	/* Check that the null-terminator is found in the allowable buffer length */
-	return memchr(file_path, '\0', CONFIG_FOTA_DOWNLOAD_RESOURCE_LOCATOR_LENGTH) != NULL;
+	return memchr(uri, '\0', CONFIG_FOTA_DOWNLOAD_RESOURCE_LOCATOR_LENGTH) != NULL;
 #endif
 	return true;
 }
 
 int nrf_cloud_download_start(struct nrf_cloud_download_data *const dl)
 {
+#if defined(CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API)
 	if (!dl || !dl->path || (dl->type <= NRF_CLOUD_DL_TYPE_NONE) ||
 	    (dl->type >= NRF_CLOUD_DL_TYPE_DL__LAST)) {
 		return -EINVAL;
 	}
+#else
+	if (!dl || !dl->uri || (dl->type <= NRF_CLOUD_DL_TYPE_NONE) ||
+	    (dl->type >= NRF_CLOUD_DL_TYPE_DL__LAST)) {
+		return -EINVAL;
+	}
+#endif /* CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API */
 
 	if (dl->type == NRF_CLOUD_DL_TYPE_FOTA) {
 		if (!IS_ENABLED(CONFIG_FOTA_DOWNLOAD)) {
@@ -517,10 +543,18 @@ int nrf_cloud_download_start(struct nrf_cloud_download_data *const dl)
 		}
 	}
 
-	if (!check_fota_file_path_len(dl->path)) {
+#if defined(CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API)
+	if (!check_fota_uri_len(dl->path)) {
 		LOG_ERR("FOTA download file path is too long");
 		return -E2BIG;
 	}
+
+#else
+	if (!check_fota_uri_len(dl->uri)) {
+		LOG_ERR("FOTA download file uri is too long");
+		return -E2BIG;
+	}
+#endif /* CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API */
 
 	int ret = 0;
 

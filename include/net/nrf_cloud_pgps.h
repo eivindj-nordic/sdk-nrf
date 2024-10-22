@@ -100,6 +100,7 @@ struct gps_pgps_request {
  *         to nrf_cloud_pgps_process().
  */
 struct nrf_cloud_pgps_result {
+#if CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API
 	/** User-provided buffer to hold download host name */
 	char *host;
 	/** Size of user-provided host buffer */
@@ -109,6 +110,12 @@ struct nrf_cloud_pgps_result {
 	char *path;
 	/** Size of user-provided path buffer */
 	size_t path_sz;
+#else
+	/** User-provided buffer to hold download uri */
+	char *uri;
+#endif
+	/** Size of user-provided buffer */
+	size_t uri_sz;
 };
 
 /** @brief P-GPS error code: current time unknown. */

@@ -47,13 +47,24 @@ static struct nrf_cloud_pgps_header saved_header;
 
 static K_SEM_DEFINE(dl_active, 1, 1);
 
+#if defined(CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API)
 static struct download_client dlc;
+#else
+static char dlc_buf[2048];
+static struct download_client dlc;
+static int download_client_callback(const struct download_client_evt *event);
+static struct download_client_cfg dlc_config = {
+	.callback = download_client_callback,
+	.buf = dlc_buf,
+	.buf_size = sizeof(dlc_buf),
+};
+#endif /* CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API */
+
 static int sec_tag_list[1];
 static int socket_retries_left;
 static npgps_buffer_handler_t buffer_handler;
 static npgps_eot_handler_t eot_handler;
 
-static int download_client_callback(const struct download_client_evt *event);
 static int settings_set(const char *key, size_t len_rd,
 			settings_read_cb read_cb, void *cb_arg);
 
@@ -472,16 +483,30 @@ int npgps_download_init(npgps_buffer_handler_t buf_handler, npgps_eot_handler_t 
 	__ASSERT(end_handler != NULL, "Must specify end of transfer handler");
 	buffer_handler = buf_handler;
 	eot_handler = end_handler;
-
+#if defined(CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API)
 	return download_client_init(&dlc, download_client_callback);
+#else
+	return download_client_init(&dlc, &dlc_config);
+#endif /* CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API */
 }
 
+#if defined(CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API)
 int npgps_download_start(const char *host, const char *file, int sec_tag,
 			 uint8_t pdn_id, size_t fragment_size)
+#else
+int npgps_download_start(const char *uri, int sec_tag,
+			 uint8_t pdn_id, size_t fragment_size)
+#endif /* CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API */
 {
+#if defined(CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API)
 	if (host == NULL || file == NULL) {
 		return -EINVAL;
 	}
+#else
+	if (uri == NULL) {
+		return -EINVAL;
+	}
+#endif /* CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API */
 
 #if defined(CONFIG_NET_IPV6) && defined(CONFIG_NET_IPV4)
 	int family = AF_UNSPEC;
@@ -495,14 +520,22 @@ int npgps_download_start(const char *host, const char *file, int sec_tag,
 	int err;
 	struct nrf_cloud_download_data dl = {
 		.type = NRF_CLOUD_DL_TYPE_DL_CLIENT,
+#if defined(CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API)
 		.host = host,
 		.path = file,
+#else
+		.uri = uri,
+#endif /* CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API */
 		.dl_cfg = {
 			.sec_tag_count = 0,
 			.sec_tag_list = NULL,
 			.pdn_id = pdn_id,
+#if defined(CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API)
 			.frag_size_override = fragment_size,
 			.set_tls_hostname = false,
+#else
+			.range_override = fragment_size,
+#endif /* CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API */
 			.family = family
 		},
 		.dlc = &dlc
@@ -512,7 +545,9 @@ int npgps_download_start(const char *host, const char *file, int sec_tag,
 		sec_tag_list[0] = sec_tag;
 		dl.dl_cfg.sec_tag_list = sec_tag_list;
 		dl.dl_cfg.sec_tag_count = 1;
+#if defined(CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API)
 		dl.dl_cfg.set_tls_hostname = true;
+#endif /* CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API */
 	}
 
 	socket_retries_left = SOCKET_RETRIES;
@@ -529,6 +564,7 @@ int npgps_download_start(const char *host, const char *file, int sec_tag,
 static int download_client_callback(const struct download_client_evt *event)
 {
 	int err = 0;
+	int ret;
 
 	if (event == NULL) {
 		return -EINVAL;
@@ -570,7 +606,11 @@ static int download_client_callback(const struct download_client_evt *event)
 
 	/* CoAP downloads do not need to disconnect since they don't directly use download_client */
 #if !defined(CONFIG_NRF_CLOUD_COAP_DOWNLOADS)
-	int ret = download_client_disconnect(&dlc);
+#if defined(CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API)
+	ret = download_client_disconnect(&dlc);
+#else
+	ret = download_client_stop(&dlc);
+#endif /* CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API */
 
 	if (ret) {
 		LOG_ERR("Error disconnecting from download client:%d", ret);

@@ -899,14 +899,19 @@ int nrf_cloud_pgps_update(struct nrf_cloud_pgps_result *file_location)
 		return -EINVAL;
 	}
 
-	if (!accept_packets) {
-		LOG_ERR("Ignoring packet (%s, %s); P-GPS response already received.",
-			file_location->host, file_location->path);
+	if (file_location == NULL) {
+		state = PGPS_NONE;
 		return -EINVAL;
 	}
 
-	if (file_location == NULL) {
-		state = PGPS_NONE;
+	if (!accept_packets) {
+#if defined(CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API)
+		LOG_ERR("Ignoring packet (%s, %s); P-GPS response already received.",
+			file_location->host, file_location->path);
+#else
+		LOG_ERR("Ignoring packet (%s); P-GPS response already received.",
+			file_location->uri);
+#endif /* CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API */
 		return -EINVAL;
 	}
 
@@ -917,6 +922,7 @@ int nrf_cloud_pgps_update(struct nrf_cloud_pgps_result *file_location)
 
 	int sec_tag = nrf_cloud_sec_tag_get();
 
+#if defined(CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API)
 	if (FORCE_HTTP_DL && (strncmp(file_location->host, "https", 5) == 0)) {
 		memmove(&file_location->host[4],
 			&file_location->host[5],
@@ -926,6 +932,16 @@ int nrf_cloud_pgps_update(struct nrf_cloud_pgps_result *file_location)
 
 	err =  npgps_download_start(file_location->host, file_location->path,
 				    sec_tag, 0, FRAGMENT_SIZE);
+#else
+	if (FORCE_HTTP_DL && (strncmp(file_location->uri, "https", 5) == 0)) {
+		memmove(&file_location->uri[4],
+			&file_location->uri[5],
+			strlen(&file_location->uri[4]));
+		sec_tag = -1;
+	}
+
+	err =  npgps_download_start(file_location->uri, sec_tag, 0, FRAGMENT_SIZE);
+#endif /* CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API */
 	if (err) {
 		state = PGPS_REQUEST_NEEDED; /* Will try again next time. */
 	}

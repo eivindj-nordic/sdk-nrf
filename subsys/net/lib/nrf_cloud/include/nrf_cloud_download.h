@@ -37,6 +37,7 @@ struct nrf_cloud_download_data {
 	/* Type of download to perform */
 	enum nrf_cloud_download_type type;
 
+#if CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API
 	/* File download host */
 	const char *host;
 	/* File download path */
@@ -44,6 +45,13 @@ struct nrf_cloud_download_data {
 
 	/* Download client configuration */
 	struct download_client_cfg dl_cfg;
+#else
+	/* File download uri */
+	const char *uri;
+
+	/* Download client host configuration */
+	struct download_client_host_cfg dl_host_cfg;
+#endif
 
 	union {
 		/* FOTA type data */

@@ -81,8 +81,13 @@ void *npgps_block_to_pointer(int block);
 
 /* download functions */
 int npgps_download_init(npgps_buffer_handler_t buf_handler, npgps_eot_handler_t eot_handler);
+#if defined(CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API)
 int npgps_download_start(const char *host, const char *file, int sec_tag,
 			 uint8_t pdn_id, size_t fragment_size);
+#else
+int npgps_download_start(const char *uri, int sec_tag,
+			 uint8_t pdn_id, size_t fragment_size);
+#endif
 
 
 #ifdef __cplusplus

@@ -877,7 +877,11 @@ static int start_job(struct nrf_cloud_fota_job *const job, const bool send_evt)
 			.sec_tag_list = &sec_tag,
 			.sec_tag_count = (sec_tag < 0 ? 0 : 1),
 			.pdn_id = 0,
+#if defined(CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API)
 			.frag_size_override = CONFIG_NRF_CLOUD_FOTA_DOWNLOAD_FRAGMENT_SIZE,
+#else
+			.range_override = CONFIG_NRF_CLOUD_FOTA_DOWNLOAD_FRAGMENT_SIZE,
+#endif /* CONFIG_DOWNLOAD_CLIENT_DEPRECATED_API */
 		},
 		.fota = {
 			.expected_type = img_type,
