@@ -277,29 +277,15 @@ static int apply_state(enum fota_state new_state)
 	return 0;
 }
 
-static int apply_fmfu_from_ext_flash(bool valid_init)
+static int apply_fmfu_from_ext_flash(void)
 {
 	int err;
 
 	printk("Applying full modem firmware update from external flash\n");
 
-	if (valid_init) {
-		err = nrf_modem_lib_shutdown();
-		if (err != 0) {
-			printk("nrf_modem_lib_shutdown() failed: %d\n", err);
-			return err;
-		}
-	}
-
-	err = nrf_modem_lib_bootloader_init();
-	if (err != 0) {
-		printk("nrf_modem_lib_bootloader_init() failed: %d\n", err);
-		return err;
-	}
-
-	err = fmfu_fdev_load(fmfu_buf, sizeof(fmfu_buf), flash_dev, 0);
-	if (err != 0) {
-		printk("fmfu_fdev_load failed: %d\n", err);
+	err = lte_lc_offline();
+	if (err) {
+		printk("Failed to disconnect LTE.");
 		return err;
 	}
 
@@ -309,6 +295,29 @@ static int apply_fmfu_from_ext_flash(bool valid_init)
 		return err;
 	}
 
+
+	err = nrf_modem_lib_bootloader_init();
+	if (err != 0) {
+		printk("nrf_modem_lib_bootloader_init() failed: %d\n", err);
+		goto reinit;
+	}
+
+	err = fmfu_fdev_load(fmfu_buf, sizeof(fmfu_buf), flash_dev, 0);
+	if (err != 0) {
+		printk("fmfu_fdev_load failed: %d\n", err);
+		nrf_modem_lib_shutdown();
+		goto reinit;
+	}
+
+	err = nrf_modem_lib_shutdown();
+	if (err != 0) {
+		printk("nrf_modem_lib_shutdown() failed: %d\n", err);
+		goto reinit;
+	}
+
+	printk("Modem firmware update completed, reinitialiing in normal mode.\n");
+
+reinit:
 	err = nrf_modem_lib_init();
 	if (err) {
 		printk("Modem library initialization failed, err %d\n", err);
@@ -323,11 +332,9 @@ static int apply_fmfu_from_ext_flash(bool valid_init)
 		}
 	}
 
-	printk("Modem firmware update completed.\n");
-
 	current_version_display();
 
-	return 0;
+	return err;
 }
 
 #if defined(CONFIG_USE_HTTPS)
@@ -406,7 +413,8 @@ void fota_dl_handler(const struct fota_download_evt *evt)
 	switch (evt->id) {
 	case FOTA_DOWNLOAD_EVT_ERROR:
 		printk("Received error from fota_download\n");
-		/* Fallthrough */
+		apply_state(CONNECTED);
+		break;
 	case FOTA_DOWNLOAD_EVT_FINISHED:
 		apply_state(UPDATE_PENDING);
 		break;
@@ -419,7 +427,7 @@ void fota_dl_handler(const struct fota_download_evt *evt)
 static int update_download(void)
 {
 	int err;
-	const char *file;
+	char uri[CONFIG_FOTA_DOWNLOAD_URI_LENGTH];
 	int sec_tag = SEC_TAG;
 	uint8_t sec_tag_count = sec_tag < 0 ? 0 : 1;
 	const struct dfu_target_full_modem_params params = {
@@ -452,13 +460,13 @@ static int update_download(void)
 	}
 
 	if (current_version_is_0()) {
-		file = CONFIG_DOWNLOAD_MODEM_1_FILE;
+		sprintf(uri, "%s/%s", CONFIG_DOWNLOAD_HOST, CONFIG_DOWNLOAD_MODEM_1_FILE);
 	} else {
-		file = CONFIG_DOWNLOAD_MODEM_0_FILE;
+		sprintf(uri, "%s/%s", CONFIG_DOWNLOAD_HOST, CONFIG_DOWNLOAD_MODEM_1_FILE);
 	}
 
 	/* Functions for getting the host and file */
-	err = fota_download(CONFIG_DOWNLOAD_HOST, file, &sec_tag, sec_tag_count, 0, 0,
+	err = fota_download(uri, &sec_tag, sec_tag_count, 0, 0,
 			    DFU_TARGET_IMAGE_TYPE_FULL_MODEM);
 	if (err != 0) {
 		printk("fota_download() failed, err %d\n", err);
@@ -519,7 +527,7 @@ static void fota_work_cb(struct k_work *work)
 		}
 		break;
 	case UPDATE_APPLY:
-		err = apply_fmfu_from_ext_flash(true);
+		err = apply_fmfu_from_ext_flash();
 		if (err) {
 			printk("FMFU failed, err %d\n", err);
 		}
