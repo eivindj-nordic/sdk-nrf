@@ -138,11 +138,10 @@ int client_socket_host_lookup(const char * const hostname, uint8_t pdn_id, struc
 	int err;
 	char pdnserv[4];
 	char *servname = NULL;
-	//char hostname[HOSTNAME_SIZE];
 	struct addrinfo *ai;
 	struct addrinfo hints = {};
 
-	printk("host lookup %s, pdn id %d\n", hostname, pdn_id);
+	LOG_DBG("host lookup %s, pdn id %d\n", hostname, pdn_id);
 
 	if (pdn_id) {
 		hints.ai_flags = AI_PDNSERV;
@@ -151,7 +150,6 @@ int client_socket_host_lookup(const char * const hostname, uint8_t pdn_id, struc
 	}
 
 #if CONFIG_NET_IPV6
-	printk("IPv6\n");
 	hints.ai_family = AF_INET6;
 	err = getaddrinfo(hostname, servname, &hints, &ai);
 	if (err) {
@@ -163,21 +161,19 @@ int client_socket_host_lookup(const char * const hostname, uint8_t pdn_id, struc
 #endif
 
 #if CONFIG_NET_IPV4
-	printk("IPv4\n");
 	hints.ai_family = AF_INET;
 	err = getaddrinfo(hostname, servname, &hints, &ai);
 	if (err) {
-		printk("Failed to resolve hostname %s on %s, err %d\n",
+		LOG_DBG("Failed to resolve hostname %s on %s, err %d\n",
 			hostname, str_family(hints.ai_family), err);
 	} else {
 		goto out;
 	}
 #endif
 
-	printk("Failed to resolve hostname %s\n", hostname);
+	LOG_ERR("Failed to resolve hostname %s\n", hostname);
 	return -EHOSTUNREACH;
 out:
-	printk("End of host lookup\n");
 	k_sleep(K_SECONDS(1));
 	memcpy(sa, ai->ai_addr, ai->ai_addrlen);
 	freeaddrinfo(ai);
@@ -206,7 +202,7 @@ int client_socket_configure_and_connect(
 		goto cleanup;
 	}
 
-	printk("family: %d, type: %d, proto: %d\n",
+	LOG_DBG("family: %d, type: %d, proto: %d\n",
 		remote_addr->sa_family, type, proto);
 
 	*fd = socket(remote_addr->sa_family, type, proto);

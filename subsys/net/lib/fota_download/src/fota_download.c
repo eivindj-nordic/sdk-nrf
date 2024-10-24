@@ -333,7 +333,7 @@ static int download_client_callback(const struct download_client_evt *event)
 
 			goto error_and_close;
 		} else {
-			LOG_ERR("Download client error");
+			LOG_ERR("Download client error event");
 			err = dfu_target_done(false);
 			if (err == -EACCES) {
 				LOG_DBG("No DFU target was initialized");
@@ -582,7 +582,7 @@ int fota_download(const char *uri,
 	static int sec_tag_list_copy[CONFIG_FOTA_DOWNLOAD_SEC_TAG_LIST_SIZE_MAX];
 	struct download_client_host_cfg host_config = {
 		.pdn_id = pdn_id,
-		.range_override = fragment_size,
+		//.range_override = fragment_size,
 	};
 
 	if (sec_tag_count > ARRAY_SIZE(sec_tag_list_copy)) {

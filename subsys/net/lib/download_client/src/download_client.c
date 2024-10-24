@@ -110,7 +110,6 @@ static int transport_close(struct download_client *dlc) {
 	}
 
 	err = ((struct dlc_transport *)dlc->transport)->close(dlc);
-	close_evt_send(dlc);
 
 	return err;
 }
@@ -154,6 +153,7 @@ static void restart_and_suspend(struct download_client *dlc) {
 
 	if (!dlc->host_config.keep_connection) {
 		transport_close(dlc);
+		close_evt_send(dlc);
 		state_set(dlc, DOWNLOAD_CLIENT_IDLE);
 		return;
 	}
@@ -305,6 +305,7 @@ void download_thread(void *cli, void *a, void *b)
 				rc = error_evt_send(dlc, rc);
 				if (rc) {
 					restart_and_suspend(dlc);
+					continue;
 				}
 
 				rc = reconnect(dlc);
@@ -315,8 +316,8 @@ void download_thread(void *cli, void *a, void *b)
 		}
 
 		if (is_state(dlc, DOWNLOAD_CLIENT_DEINITIALIZING)) {
-			printk("Deinitializing download client");
 			transport_close(dlc);
+			close_evt_send(dlc);
 			transport_deinit(dlc);
 			state_set(dlc, DOWNLOAD_CLIENT_DEINITIALIZED);
 			deinit_evt_send(dlc);
@@ -429,7 +430,7 @@ int download_client_start(struct download_client *dlc,
 
 	dlc->transport = NULL;
 
-	printk("Finding transport for %s\n", uri);
+	LOG_INF("Finding transport for %s", uri);
 
 	STRUCT_SECTION_FOREACH(dlc_transport_entry, entry) {
 		if (entry->transport->proto_supported(dlc, uri)) {
@@ -439,11 +440,19 @@ int download_client_start(struct download_client *dlc,
 	}
 
 	if (!dlc->transport) {
-		LOG_ERR("Protocol not specified for %s", uri);
-		return -EINVAL;
-	};
+		LOG_WRN("Protocol not specified for %s, attempting http", uri);
+		STRUCT_SECTION_FOREACH(dlc_transport_entry, entry) {
+			if (entry->transport->proto_supported(dlc, "http://")) {
+				dlc->transport = entry->transport;
+				break;
+			}
+		}
 
-	printk("Found transport, state is %d", dlc->state);
+		if (!dlc->transport) {
+			LOG_ERR("Protocol not specified for %s and http could not be used", uri);
+			return -EINVAL;
+		}
+	};
 
 	if (is_state(dlc, DOWNLOAD_CLIENT_CONNECTED)) {
 		if (dlc->transport == transport_connected) {
@@ -470,7 +479,6 @@ int download_client_start(struct download_client *dlc,
 		return err;
 	}
 
-	printk("Transport initialized\n");
 	k_sleep(K_MSEC(1000));
 
 out:
@@ -483,13 +491,21 @@ out:
 
 int download_client_stop(struct download_client *const dlc)
 {
-	if (dlc == NULL || is_state(dlc, DOWNLOAD_CLIENT_IDLE)) {
+	if (dlc == NULL ||
+	    is_state(dlc, DOWNLOAD_CLIENT_IDLE) ||
+	    is_state(dlc, DOWNLOAD_CLIENT_CONNECTED) ||
+	    is_state(dlc, DOWNLOAD_CLIENT_DEINITIALIZED)) {
 		return -EINVAL;
 	}
 
-	transport_close(dlc);
-	close_evt_send(dlc);
-	state_set(dlc, DOWNLOAD_CLIENT_IDLE);
+	if (!dlc->host_config.keep_connection) {
+		transport_close(dlc);
+		close_evt_send(dlc);
+		state_set(dlc, DOWNLOAD_CLIENT_IDLE);
+		return 0;
+	}
+
+	state_set(dlc, DOWNLOAD_CLIENT_CONNECTED);
 
 	return 0;
 }
@@ -503,9 +519,6 @@ int download_client_get(struct download_client *dlc,
 	if (dlc == NULL || uri == NULL) {
 		return -EINVAL;
 	}
-
-	printk("Get file\n");
-	k_sleep(K_SECONDS(1));
 
 	k_mutex_lock(&dlc->mutex, K_FOREVER);
 

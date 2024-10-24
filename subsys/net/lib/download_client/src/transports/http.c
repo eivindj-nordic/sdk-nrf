@@ -149,6 +149,8 @@ send:
 		LOG_HEXDUMP_DBG(dlc->config.buf, len, "HTTP request");
 	}
 
+	LOG_DBG("http request:\n%s\n", dlc->config.buf);
+
 	err = client_socket_send(http->sock.fd, dlc->config.buf, len);
 	if (err) {
 		LOG_ERR("Failed to send HTTP request, errno %d", errno);
@@ -171,6 +173,8 @@ static int http_header_parse(struct download_client *dlc, size_t buf_len)
 	struct transport_params_http *http;
 
 	http = (struct transport_params_http *)dlc->transport_internal;
+
+	LOG_DBG("(partial) http header response:\n%s", dlc->config.buf);
 
 	p = strnstr(dlc->config.buf, "\r\n\r\n", dlc->config.buf_size);
 	if (p) {
@@ -252,11 +256,6 @@ static int http_header_parse(struct download_client *dlc, size_t buf_len)
 		 * Verify that we have received everything that we need.
 		 */
 
-		if (!dlc->file_size) {
-			LOG_ERR("File size not set");
-			return -EBADMSG;
-		}
-
 		if (!http->header.status_code) {
 			LOG_ERR("Server response malformed: status code not found");
 			return -EBADMSG;
@@ -265,6 +264,11 @@ static int http_header_parse(struct download_client *dlc, size_t buf_len)
 		expected_status = (http->ranged || dlc->progress) ? 206 : 200;
 		if (http->header.status_code != expected_status) {
 			LOG_ERR("Unexpected HTTP response code %ld", http->header.status_code);
+			return -EBADMSG;
+		}
+
+		if (!dlc->file_size) {
+			LOG_ERR("File size not set");
 			return -EBADMSG;
 		}
 
@@ -290,7 +294,7 @@ static int http_header_parse(struct download_client *dlc, size_t buf_len)
 }
 
 /* Returns:
- * length of data payload received on success
+ * Length of data payload left to process on success
  * Negative errno on error.
  */
 int http_parse(struct download_client *dlc, size_t len)
@@ -375,7 +379,8 @@ static int dlc_http_init(struct download_client *dlc, struct download_client_hos
 	http->sock.proto = IPPROTO_TCP;
 	http->sock.type = SOCK_STREAM;
 
-	if (strncmp(uri, "https://", 8) == 0) {
+	if (strncmp(uri, "https://", 8) == 0 ||
+	    (host_cfg->sec_tag_count != 0 && host_cfg->sec_tag_list == NULL)) {
 		http->sock.proto = IPPROTO_TLS_1_2;
 		http->sock.type = SOCK_STREAM;
 

@@ -238,7 +238,12 @@ static void current_version_display(void)
 
 static int apply_state(enum fota_state new_state)
 {
-	__ASSERT(state != new_state, "State already set: %d", state);
+	printk("Apply state %d\n", new_state);
+
+	//__ASSERT(state != new_state, "State already set: %d", state);
+	if (state == new_state) {
+		printk("Same state! %d\n", new_state);
+	}
 
 	state = new_state;
 

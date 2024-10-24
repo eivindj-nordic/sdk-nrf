@@ -113,10 +113,12 @@ int url_parse_file(const char *url, char *file, size_t len)
 		if (err) {
 			return -EINVAL;
 		}
-		err = swallow(&cur, "/");
-		if (err) {
-			return -EINVAL;
-		}
+
+	}
+
+	err = swallow(&cur, "/");
+	if (err) {
+		return -EINVAL;
 	}
 
 	if (strlen(cur) + 1 > len) {
